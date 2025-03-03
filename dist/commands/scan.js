@@ -1,6 +1,4 @@
 "use strict";
-// this will be used to perform
-// full security scanning (dependabot & code scanning alerts)
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.scanCommand = scanCommand;
 const commander_1 = require("commander");
@@ -20,24 +18,36 @@ function scanCommand() {
         }
         const octokit = (0, githubClient_1.createGithubClient)();
         try {
-            //1. Fetch the repos
+            // 1. Fetch the repos from the organization
             const { data: repos } = await octokit.rest.repos.listForOrg({
                 org,
                 per_page: 100,
             });
-            //2. For each repo, fetch Dependabot and code scanning alerts
+            // 2. For each repo, fetch Dependabot and code scanning alerts
             for (const repo of repos) {
-                //Dependabot
-                const { data: dependabotAlerts } = await octokit.request("GET /repos/{owner}/{repos}/dependabot/alerts", { owner: org, repo: repo.name });
-                //Code scanning
-                const { data: codeScanAlerts } = await octokit.request("GET /repos/{owner}/{repo}/code-scanning/alerts", { owner: org, repo: repo.name });
-                //Save to DB via Prisma
-                // 2a. Ensure organization and repo exist in db.
+                console.log(`Scanning repo: ${repo.name}`);
+                // Dependabot alerts
+                const { data: dependabotAlerts } = await octokit.request("GET /repos/{owner}/{repo}/dependabot/alerts", { owner: org, repo: repo.name });
+                // Code scanning alerts with graceful error handling
+                let codeScanAlerts = [];
+                try {
+                    const response = await octokit.request("GET /repos/{owner}/{repo}/code-scanning/alerts", { owner: org, repo: repo.name });
+                    codeScanAlerts = response.data;
+                }
+                catch (error) {
+                    if (error.status === 404 && error.message.includes("no analysis found")) {
+                        console.log(`No code scanning alerts found for repo: ${repo.name}`);
+                        codeScanAlerts = [];
+                    }
+                    else {
+                        throw error;
+                    }
+                }
+                // 2a. Ensure organization and repository exist in the database.
                 let orgRecord = await prisma.organization.findUnique({
                     where: { name: org },
                 });
                 if (!orgRecord) {
-                    //TODO: Check if upsert is usable here
                     orgRecord = await prisma.organization.create({
                         data: { name: org },
                     });
@@ -56,26 +66,36 @@ function scanCommand() {
                         },
                     });
                 }
-                //2b. Insert alertsz
+                // 2b. Insert Dependabot alerts into the database
                 for (const alert of dependabotAlerts) {
                     await prisma.alert.create({
                         data: {
+                            alertType: 'dependabot',
+                            severity: alert.security_advisory?.severity || 'UNKNOWN',
+                            description: alert.security_advisory?.description || '',
+                            repository: { connect: { id: repoRecord.id } },
+                        },
+                    });
+                }
+                // 2c. Insert Code scanning alerts into the database
+                for (const alert of codeScanAlerts) {
+                    await prisma.alert.create({
+                        data: {
                             alertType: 'code-scanning',
-                            severity: alert.rule.severity || 'UNKNOWN', //store the severity if not known then store `UNKNOWN`
-                            description: alert.rule.description || '',
-                            repository: { connect: { id: repoRecord.id } }
+                            severity: alert.rule?.severity || 'UNKNOWN',
+                            description: alert.rule?.description || '',
+                            repository: { connect: { id: repoRecord.id } },
                         },
                     });
                 }
             }
-            console.log('Security scan completed successfully');
+            console.log("Security scan completed successfully");
         }
         catch (error) {
-            console.error('Error during scan: ', error);
+            console.error("Error during scan: ", error);
             process.exit(1);
         }
         finally {
-            //disconnect db
             await prisma.$disconnect();
         }
     });
