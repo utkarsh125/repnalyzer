@@ -3,6 +3,7 @@
 import * as dotenv from 'dotenv';
 
 import { Command } from "commander";
+import { accessCommand } from './commands/access';
 import { scanCommand } from './commands/scan'
 
 dotenv.config();
@@ -22,6 +23,7 @@ program
 
 //TODO: Add subcommands.
 program.addCommand(scanCommand());
+program.addCommand(accessCommand());
 
 program.parse(process.argv)
 

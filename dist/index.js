@@ -36,6 +36,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv = __importStar(require("dotenv"));
 const commander_1 = require("commander");
+const access_1 = require("./commands/access");
 const scan_1 = require("./commands/scan");
 dotenv.config();
 console.log('Repnalyzering is starting...');
@@ -47,4 +48,5 @@ program
     .version('0.1.0');
 //TODO: Add subcommands.
 program.addCommand((0, scan_1.scanCommand)());
+program.addCommand((0, access_1.accessCommand)());
 program.parse(process.argv);
