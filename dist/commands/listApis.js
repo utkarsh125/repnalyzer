@@ -13,7 +13,7 @@ const prisma = new client_1.PrismaClient();
 function listApisCommand() {
     const listApis = new commander_1.Command("list-apis");
     listApis
-        .description("Scan repositories for API endpoints and API keys, and list them from the local Prisma database. Use --org to specify the GitHub organization and --repo to filter by repository name.")
+        .description("Scan repositories for API endpoints, API keys, and connected APIs (webhooks, integrations, and service connections) and list them from the local Prisma database. Use --org to specify the GitHub organization and --repo to filter by repository name.")
         .option("--org <org>", "GitHub organization name (required)")
         .option("--repo <repo>", "Filter by repository name")
         .action(async (options) => {
@@ -24,10 +24,11 @@ function listApisCommand() {
             console.error(chalk_1.default.red("Please specify --org <org>"));
             process.exit(1);
         }
-        const octokit = (0, githubClient_1.createGithubClient)();
-        // 1. Scan GitHub repositories for API endpoints and API keys and store them in the DB
+        // Pass the token from the environment (which should be set by your main script)
+        const token = process.env.GITHUB_TOKEN;
+        const octokit = (0, githubClient_1.createGithubClient)(token);
+        // ... (rest of your code remains unchanged)
         try {
-            // Use Octokit's pagination helper to fetch all repositories for the organization
             const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
                 org,
                 per_page: 100,
@@ -37,7 +38,6 @@ function listApisCommand() {
                 console.log(chalk_1.default.yellow(`No repositories found in organization ${org}`));
                 process.exit(0);
             }
-            // Ensure organization exists in our DB
             let orgRecord = await prisma.organization.findUnique({
                 where: { name: org },
             });
@@ -46,15 +46,10 @@ function listApisCommand() {
                     data: { name: org },
                 });
             }
-            // Process each repository
             for (const repoData of repos) {
-                // If a repository filter is provided, skip non-matching repos
-                if (repo && repoData.name !== repo) {
+                if (repo && repoData.name !== repo)
                     continue;
-                }
                 console.log(chalk_1.default.green(`\nScanning repository: ${repoData.name}`));
-                // (Removed the size check so even repos reporting size 0 are processed)
-                // Ensure repository record exists in our DB
                 let repoRecord = await prisma.repository.findFirst({
                     where: { name: repoData.name, orgId: orgRecord.id },
                 });
@@ -66,13 +61,12 @@ function listApisCommand() {
                         },
                     });
                 }
-                // Fetch file tree from the repository's default branch
                 let treeResponse;
                 try {
                     treeResponse = await octokit.rest.git.getTree({
                         owner: org,
                         repo: repoData.name,
-                        tree_sha: repoData.default_branch, // non-null assertion
+                        tree_sha: repoData.default_branch,
                         recursive: "1",
                     });
                 }
@@ -86,11 +80,9 @@ function listApisCommand() {
                     console.log(chalk_1.default.yellow(`No files found in repository ${repoData.name}.`));
                     continue;
                 }
-                // Filter for code files (only include files with a defined path)
                 const codeFiles = tree.filter((file) => file.type === "blob" &&
                     file.path !== undefined &&
                     /\.(js|ts|py|java|go|rb)$/.test(file.path));
-                // Scan each code file for API endpoints and API keys
                 for (const file of codeFiles) {
                     try {
                         const fileResponse = await octokit.rest.repos.getContent({
@@ -104,19 +96,14 @@ function listApisCommand() {
                             fileResponse.data.content) {
                             content = Buffer.from(fileResponse.data.content, "base64").toString("utf-8");
                         }
-                        // Print the file content to the console before processing
                         console.log(chalk_1.default.blue(`\nContent of ${file.path}:`));
                         console.log(content);
-                        // --- API Endpoint Extraction ---
-                        // Adjusted regex: allow additional delimiters like angle brackets
                         const endpointRegex = /(https?:\/\/[^\s'"<>]+)/g;
                         const endpointMatches = content.match(endpointRegex);
                         if (endpointMatches) {
                             console.log(chalk_1.default.magenta(`Endpoint matches found in ${file.path}: ${endpointMatches.join(", ")}`));
                             for (const url of endpointMatches) {
-                                // Filter only those endpoints that include "api"
                                 if (url.toLowerCase().includes("api")) {
-                                    // Check if this API endpoint is already in the DB for this repository
                                     const existingEndpoint = await prisma.apiEndpoint.findFirst({
                                         where: {
                                             endpoint: url,
@@ -138,14 +125,11 @@ function listApisCommand() {
                         else {
                             console.log(chalk_1.default.red(`No endpoint matches found in ${file.path}`));
                         }
-                        // --- API Key Extraction ---
-                        // Regex to match typical API key patterns (e.g., "apiKey": "value", "api-key" = 'value')
                         const apiKeyRegex = /api[_-]?key\s*[:=]\s*['"]([^'"]+)['"]/gi;
                         const keyMatches = [...content.matchAll(apiKeyRegex)];
                         if (keyMatches.length) {
                             keyMatches.forEach(async (match) => {
                                 const key = match[1];
-                                // Check if this API key is already in the DB for this repository
                                 const existingKey = await prisma.apiKey.findFirst({
                                     where: {
                                         key,
@@ -170,16 +154,83 @@ function listApisCommand() {
                     catch (fileError) {
                         const errorMsg = fileError instanceof Error ? fileError.message : String(fileError);
                         console.error(chalk_1.default.red(`Error scanning file ${file.path} in ${repoData.name}: ${errorMsg}`));
-                        // Continue with the next file if an error occurs
                     }
                 }
+                try {
+                    const hooksResponse = await octokit.rest.repos.listWebhooks({
+                        owner: org,
+                        repo: repoData.name,
+                    });
+                    const hooks = hooksResponse.data;
+                    if (hooks && hooks.length > 0) {
+                        for (const hook of hooks) {
+                            const hookUrl = hook.config && hook.config.url ? hook.config.url : "N/A";
+                            const existingHook = await prisma.apiConnection.findFirst({
+                                where: {
+                                    repository: { id: repoRecord.id },
+                                    connectionType: "webhook",
+                                    identifier: hook.id.toString(),
+                                },
+                            });
+                            if (!existingHook) {
+                                await prisma.apiConnection.create({
+                                    data: {
+                                        repository: { connect: { id: repoRecord.id } },
+                                        connectionType: "webhook",
+                                        identifier: hook.id.toString(),
+                                        config: JSON.stringify(hook.config),
+                                    },
+                                });
+                                console.log(chalk_1.default.yellow(`Found webhook in ${repoData.name}: ${hookUrl}`));
+                            }
+                        }
+                    }
+                    else {
+                        console.log(chalk_1.default.yellow(`No webhooks found for repository ${repoData.name}.`));
+                    }
+                }
+                catch (hookError) {
+                    const errorMsg = hookError instanceof Error ? hookError.message : String(hookError);
+                    console.error(chalk_1.default.red(`Error fetching webhooks for ${repoData.name}: ${errorMsg}`));
+                }
+                try {
+                    const installationResponse = await octokit.rest.apps.getRepoInstallation({
+                        owner: org,
+                        repo: repoData.name,
+                    });
+                    const installation = installationResponse.data;
+                    if (installation) {
+                        const existingIntegration = await prisma.apiConnection.findFirst({
+                            where: {
+                                repository: { id: repoRecord.id },
+                                connectionType: "integration",
+                                identifier: installation.id.toString(),
+                            },
+                        });
+                        if (!existingIntegration) {
+                            await prisma.apiConnection.create({
+                                data: {
+                                    repository: { connect: { id: repoRecord.id } },
+                                    connectionType: "integration",
+                                    identifier: installation.id.toString(),
+                                    config: JSON.stringify(installation),
+                                },
+                            });
+                            console.log(chalk_1.default.yellow(`Found integration in ${repoData.name}: GitHub App installation with id ${installation.id}`));
+                        }
+                    }
+                }
+                catch (integrationError) {
+                    const errorMsg = integrationError instanceof Error ? integrationError.message : String(integrationError);
+                    console.log(chalk_1.default.yellow(`No integration found for repository ${repoData.name} or error: ${errorMsg}`));
+                }
+                console.log(chalk_1.default.yellow(`No service connections API available for repository ${repoData.name}.`));
             }
         }
         catch (scanError) {
             const errorMsg = scanError instanceof Error ? scanError.message : String(scanError);
             console.error(chalk_1.default.red("Error scanning repositories:"), errorMsg);
         }
-        // 2. Now fetch and display the API endpoints and API keys from the local DB
         try {
             const endpoints = await prisma.apiEndpoint.findMany({
                 include: {
@@ -205,11 +256,9 @@ function listApisCommand() {
                     console.log(chalk_1.default.gray(`Discovered on: ${new Date(endpoint.createdAt).toLocaleString()}`));
                     console.log(chalk_1.default.blue("-------------------------------------------------"));
                 });
-                // Added summary line in yellow
                 console.log(chalk_1.default.yellow("API endpoints stored in database: " +
                     endpoints.map((ep) => ep.endpoint).join(" \n")));
             }
-            // Fetch and display API keys as well (assumes you have a Prisma model for ApiKey)
             const apiKeys = await prisma.apiKey.findMany({
                 include: {
                     repository: {
@@ -223,10 +272,7 @@ function listApisCommand() {
                     },
                 },
             });
-            if (apiKeys.length === 0) {
-                console.log(chalk_1.default.yellow("No API keys found in the local database."));
-            }
-            else {
+            if (apiKeys.length !== 0) {
                 apiKeys.forEach((apiKey) => {
                     console.log(chalk_1.default.green(`Organization: ${apiKey.repository.organization.name}`));
                     console.log(chalk_1.default.green(`Repository: ${apiKey.repository.name}`));
@@ -234,6 +280,34 @@ function listApisCommand() {
                     console.log(chalk_1.default.gray(`Stored on: ${new Date(apiKey.createdAt).toLocaleString()}`));
                     console.log(chalk_1.default.blue("-------------------------------------------------"));
                 });
+            }
+            const connections = await prisma.apiConnection.findMany({
+                include: {
+                    repository: {
+                        include: { organization: true },
+                    },
+                },
+                where: {
+                    repository: {
+                        ...(org ? { organization: { name: org } } : {}),
+                        ...(repo ? { name: repo } : {}),
+                    },
+                },
+            });
+            if (connections.length === 0) {
+                console.log(chalk_1.default.yellow("No API connections found in the local database."));
+            }
+            else {
+                connections.forEach((connection) => {
+                    console.log(chalk_1.default.green(`Organization: ${connection.repository.organization.name}`));
+                    console.log(chalk_1.default.green(`Repository: ${connection.repository.name}`));
+                    console.log(chalk_1.default.green(`Connection Type: ${connection.connectionType}`));
+                    console.log(chalk_1.default.green(`Identifier: ${connection.identifier}`));
+                    console.log(chalk_1.default.gray(`Stored on: ${new Date(connection.createdAt).toLocaleString()}`));
+                    console.log(chalk_1.default.blue("-------------------------------------------------"));
+                });
+                console.log(chalk_1.default.yellow("API connections stored in database: " +
+                    connections.map((c) => `${c.connectionType}: ${c.identifier}`).join(" \n")));
             }
         }
         catch (fetchError) {

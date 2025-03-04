@@ -16,14 +16,16 @@ model Organization {
 }
 
 model Repository {
-  id           String        @id @default(cuid())
-  name         String
-  orgId        String
-  organization Organization  @relation(fields: [orgId], references: [id])
-  alerts       Alert[]
-  apiEndpoints ApiEndpoint[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             String         @id @default(cuid())
+  name           String
+  orgId          String
+  organization   Organization   @relation(fields: [orgId], references: [id])
+  alerts         Alert[]
+  apiEndpoints   ApiEndpoint[]
+  apiKeys        ApiKey[]
+  apiConnections ApiConnection[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model Alert {
@@ -45,3 +47,20 @@ model ApiEndpoint {
   createdAt    DateTime   @default(now())
 }
 
+model ApiKey {
+  id           Int        @id @default(autoincrement())
+  key          String
+  repository   Repository @relation(fields: [repositoryId], references: [id])
+  repositoryId String
+  createdAt    DateTime   @default(now())
+}
+
+model ApiConnection {
+  id             Int        @id @default(autoincrement())
+  repository     Repository @relation(fields: [repositoryId], references: [id])
+  repositoryId   String
+  connectionType String     // e.g. "webhook", "integration"
+  identifier     String     // Unique identifier (e.g. webhook id or installation id)
+  config         String     // JSON string with details
+  createdAt      DateTime   @default(now())
+}
