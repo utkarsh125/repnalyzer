@@ -18,52 +18,65 @@ dotenv.config();
 
 
 
+// Paths to local config files:
+const DB_FILE = path.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
+const MIGRATIONS_DONE_FILE = path.join(process.env.HOME || process.cwd(), '.repnalyzer_migrations_done');
 
-// Function to update DATABASE_URL manually.
+// Prompts user to update the DATABASE_URL and sets it in process.env
 async function updateDatabaseUrl() {
   const newDbUrl = await promptForDB();
-  const DB_FILE = path.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
   fs.writeFileSync(DB_FILE, newDbUrl, { mode: 0o600 });
   process.env.DATABASE_URL = newDbUrl;
   console.log(chalk.green("DATABASE_URL updated successfully."));
 }
 
-// Function to update repnalyzer (prints update instructions)
+// Prints instructions for updating repnalyzer globally
 async function updateRepnalyzer() {
   console.log(chalk.green("To update repnalyzer globally, run:"));
   console.log(chalk.yellow("npm update -g repnalyzer"));
 }
 
-// This function loads both the GITHUB_TOKEN and DATABASE_URL.
+// Loads environment variables (GITHUB_TOKEN and DATABASE_URL).
 async function initializeEnv() {
-  // Load GitHub token.
+  // 1. GitHub token
   const githubToken = await getApiKey();
   process.env.GITHUB_TOKEN = githubToken;
   console.log(chalk.green('GITHUB_TOKEN loaded.'));
 
-  // Load DATABASE_URL.
+  // 2. Database URL
   const dbUrl = await getDBUrl();
   process.env.DATABASE_URL = dbUrl;
   console.log(chalk.green('DATABASE_URL loaded.'));
 }
 
-// Function to automatically run Prisma migrations using the default schema shipped with the package.
-function runPrismaMigrations() {
+// Runs Prisma migrations only once, creating a small file to remember they are done
+function runPrismaMigrationsOnce() {
+  if (fs.existsSync(MIGRATIONS_DONE_FILE)) {
+    // Already migrated
+    console.log(chalk.yellow("Migrations already applied. Skipping."));
+    return;
+  }
+
+  console.log(chalk.blue("Applying Prisma migrations for the first time..."));
+
+  const schemaPath = path.join(__dirname, '../prisma/schema.prisma');
+  if (!fs.existsSync(schemaPath)) {
+    console.error(
+      chalk.red(
+        "Prisma schema not found. Please ensure a schema.prisma exists in the 'prisma' folder of your project, or include one with repnalyzer."
+      )
+    );
+    process.exit(1);
+  }
+
   try {
-    console.log(chalk.blue("Applying Prisma migrations..."));
-    // Define the expected location of your Prisma schema relative to this file.
-    const schemaPath = path.join(__dirname, '../prisma/schema.prisma');
-
-    if (!fs.existsSync(schemaPath)) {
-      console.error(
-        chalk.red("Prisma schema not found. Please ensure a schema.prisma exists in the 'prisma' folder of your project, or include one with repnalyzer.")
-      );
-      process.exit(1);
-    }
-
-    // Run migration command with the --schema flag.
     execSync(`npx prisma migrate deploy --schema="${schemaPath}"`, { stdio: 'inherit' });
     console.log(chalk.green("Prisma migrations applied successfully."));
+    // Mark migrations as done
+    fs.writeFileSync(MIGRATIONS_DONE_FILE, "done", { mode: 0o600 });
+
+    // Print a friendly message on the first run
+    console.log(chalk.green("To get started, type 'repnalyzer' into the console."));
   } catch (err) {
     console.error(chalk.red("Error applying Prisma migrations:"), err);
     process.exit(1);
@@ -74,24 +87,25 @@ async function main() {
   console.log(chalk.blue(figlet.textSync('Repnalyzer')));
   console.log(chalk.yellow('Repnalyzer is starting...\n'));
 
-  // Initialize environment variables (GITHUB_TOKEN and DATABASE_URL)
+  // 1. Initialize environment (prompts if needed)
   await initializeEnv();
 
-  // Automatically apply Prisma migrations before proceeding.
-  runPrismaMigrations();
+  // 2. Apply Prisma migrations only once
+  runPrismaMigrationsOnce();
 
+  // 3. Register CLI commands
   const program = new Command();
   program
     .name('repnalyzer')
     .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
     .version('0.1.0');
 
-  // Register subcommands (they instantiate PrismaClient within their action callbacks)
+  // Subcommands
   program.addCommand(scanCommand());
   program.addCommand(accessCommand());
   program.addCommand(listApisCommand());
 
-  // Command to update the GitHub token.
+  // Command: update-token
   program
     .command('update-token')
     .description('Update your GITHUB_TOKEN')
@@ -113,7 +127,7 @@ async function main() {
       });
     });
 
-  // Command to update the DATABASE_URL.
+  // Command: update-db
   program
     .command('update-db')
     .description('Update your DATABASE_URL')
@@ -121,7 +135,7 @@ async function main() {
       await updateDatabaseUrl();
     });
 
-  // Command to update repnalyzer itself.
+  // Command: update
   program
     .command('update')
     .description('Update repnalyzer')
@@ -129,15 +143,14 @@ async function main() {
       await updateRepnalyzer();
     });
 
-  // Default behavior: if an organization name is provided, show org stats;
-  // otherwise, show a help prompt.
+  // Default argument: [orgname]
   program
     .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
     .action(async (orgname) => {
       if (orgname) {
-        // Call your getOrgStats() function here, if implemented.
+        // Possibly call getOrgStats(githubToken, orgname)
       } else {
-        // Call your getUserStats() function here, if implemented.
+        // Possibly call getUserStats(githubToken)
         console.log(chalk.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
       }
     });

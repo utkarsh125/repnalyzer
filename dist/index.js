@@ -50,43 +50,52 @@ const listApis_1 = __importDefault(require("./commands/listApis"));
 const path_1 = __importDefault(require("path"));
 const scan_1 = require("./commands/scan");
 dotenv.config();
-// Function to update DATABASE_URL manually.
+// Paths to local config files:
+const DB_FILE = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
+const MIGRATIONS_DONE_FILE = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_migrations_done');
+// Prompts user to update the DATABASE_URL and sets it in process.env
 async function updateDatabaseUrl() {
     const newDbUrl = await (0, db_1.promptForDB)();
-    const DB_FILE = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
     fs_1.default.writeFileSync(DB_FILE, newDbUrl, { mode: 0o600 });
     process.env.DATABASE_URL = newDbUrl;
     console.log(chalk_1.default.green("DATABASE_URL updated successfully."));
 }
-// Function to update repnalyzer (prints update instructions)
+// Prints instructions for updating repnalyzer globally
 async function updateRepnalyzer() {
     console.log(chalk_1.default.green("To update repnalyzer globally, run:"));
     console.log(chalk_1.default.yellow("npm update -g repnalyzer"));
 }
-// This function loads both the GITHUB_TOKEN and DATABASE_URL.
+// Loads environment variables (GITHUB_TOKEN and DATABASE_URL).
 async function initializeEnv() {
-    // Load GitHub token.
+    // 1. GitHub token
     const githubToken = await (0, token_1.getApiKey)();
     process.env.GITHUB_TOKEN = githubToken;
     console.log(chalk_1.default.green('GITHUB_TOKEN loaded.'));
-    // Load DATABASE_URL.
+    // 2. Database URL
     const dbUrl = await (0, db_1.getDBUrl)();
     process.env.DATABASE_URL = dbUrl;
     console.log(chalk_1.default.green('DATABASE_URL loaded.'));
 }
-// Function to automatically run Prisma migrations using the default schema shipped with the package.
-function runPrismaMigrations() {
+// Runs Prisma migrations only once, creating a small file to remember they are done
+function runPrismaMigrationsOnce() {
+    if (fs_1.default.existsSync(MIGRATIONS_DONE_FILE)) {
+        // Already migrated
+        console.log(chalk_1.default.yellow("Migrations already applied. Skipping."));
+        return;
+    }
+    console.log(chalk_1.default.blue("Applying Prisma migrations for the first time..."));
+    const schemaPath = path_1.default.join(__dirname, '../prisma/schema.prisma');
+    if (!fs_1.default.existsSync(schemaPath)) {
+        console.error(chalk_1.default.red("Prisma schema not found. Please ensure a schema.prisma exists in the 'prisma' folder of your project, or include one with repnalyzer."));
+        process.exit(1);
+    }
     try {
-        console.log(chalk_1.default.blue("Applying Prisma migrations..."));
-        // Define the expected location of your Prisma schema relative to this file.
-        const schemaPath = path_1.default.join(__dirname, '../prisma/schema.prisma');
-        if (!fs_1.default.existsSync(schemaPath)) {
-            console.error(chalk_1.default.red("Prisma schema not found. Please ensure a schema.prisma exists in the 'prisma' folder of your project, or include one with repnalyzer."));
-            process.exit(1);
-        }
-        // Run migration command with the --schema flag.
         (0, child_process_1.execSync)(`npx prisma migrate deploy --schema="${schemaPath}"`, { stdio: 'inherit' });
         console.log(chalk_1.default.green("Prisma migrations applied successfully."));
+        // Mark migrations as done
+        fs_1.default.writeFileSync(MIGRATIONS_DONE_FILE, "done", { mode: 0o600 });
+        // Print a friendly message on the first run
+        console.log(chalk_1.default.green("To get started, type 'repnalyzer' into the console."));
     }
     catch (err) {
         console.error(chalk_1.default.red("Error applying Prisma migrations:"), err);
@@ -96,20 +105,21 @@ function runPrismaMigrations() {
 async function main() {
     console.log(chalk_1.default.blue(figlet_1.default.textSync('Repnalyzer')));
     console.log(chalk_1.default.yellow('Repnalyzer is starting...\n'));
-    // Initialize environment variables (GITHUB_TOKEN and DATABASE_URL)
+    // 1. Initialize environment (prompts if needed)
     await initializeEnv();
-    // Automatically apply Prisma migrations before proceeding.
-    runPrismaMigrations();
+    // 2. Apply Prisma migrations only once
+    runPrismaMigrationsOnce();
+    // 3. Register CLI commands
     const program = new commander_1.Command();
     program
         .name('repnalyzer')
         .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
         .version('0.1.0');
-    // Register subcommands (they instantiate PrismaClient within their action callbacks)
+    // Subcommands
     program.addCommand((0, scan_1.scanCommand)());
     program.addCommand((0, access_1.accessCommand)());
     program.addCommand((0, listApis_1.default)());
-    // Command to update the GitHub token.
+    // Command: update-token
     program
         .command('update-token')
         .description('Update your GITHUB_TOKEN')
@@ -126,30 +136,29 @@ async function main() {
             process.env.GITHUB_TOKEN = newToken;
         });
     });
-    // Command to update the DATABASE_URL.
+    // Command: update-db
     program
         .command('update-db')
         .description('Update your DATABASE_URL')
         .action(async () => {
         await updateDatabaseUrl();
     });
-    // Command to update repnalyzer itself.
+    // Command: update
     program
         .command('update')
         .description('Update repnalyzer')
         .action(async () => {
         await updateRepnalyzer();
     });
-    // Default behavior: if an organization name is provided, show org stats;
-    // otherwise, show a help prompt.
+    // Default argument: [orgname]
     program
         .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
         .action(async (orgname) => {
         if (orgname) {
-            // Call your getOrgStats() function here, if implemented.
+            // Possibly call getOrgStats(githubToken, orgname)
         }
         else {
-            // Call your getUserStats() function here, if implemented.
+            // Possibly call getUserStats(githubToken)
             console.log(chalk_1.default.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
         }
     });
