@@ -24,7 +24,6 @@ model Repository {
   apiEndpoints ApiEndpoint[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  apiKeys      ApiKey[]
 }
 
 model Alert {
@@ -46,10 +45,3 @@ model ApiEndpoint {
   createdAt    DateTime   @default(now())
 }
 
-model ApiKey {
-  id           Int        @id @default(autoincrement())
-  key          String
-  repository   Repository @relation(fields: [repositoryId], references: [id])
-  repositoryId String
-  createdAt    DateTime   @default(now())
-}
