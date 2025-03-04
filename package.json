@@ -23,11 +23,15 @@
   "dependencies": {
     "@octokit/rest": "^21.1.1",
     "@prisma/client": "^6.4.1",
+    "@types/chalk": "^0.4.31",
     "@types/commander": "^2.12.0",
     "@types/dotenv": "^6.1.1",
+    "@types/figlet": "^1.7.0",
     "@types/nodemon": "^1.19.6",
+    "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "dotenv": "^16.4.7",
+    "figlet": "^1.8.0",
     "nodemon": "^3.1.9",
     "prisma": "^6.4.1"
   },

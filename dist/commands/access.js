@@ -1,9 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.accessCommand = accessCommand;
 const commander_1 = require("commander");
 const client_1 = require("@prisma/client");
+const chalk_1 = __importDefault(require("chalk"));
 const githubClient_1 = require("../lib/githubClient");
+const figlet_1 = __importDefault(require("figlet"));
 const prisma = new client_1.PrismaClient();
 function accessCommand() {
     const access = new commander_1.Command("access");
@@ -13,68 +18,87 @@ function accessCommand() {
         .action(async (options) => {
         const { org } = options;
         if (!org) {
-            console.error("Please specify --org <org>");
+            console.error(chalk_1.default.red("❌ Please specify --org <org>"));
             process.exit(1);
         }
+        console.log(chalk_1.default.blue(figlet_1.default.textSync("access")));
+        console.log(chalk_1.default.cyan("🔍 Repanalyzer is starting...\n"));
         const octokit = (0, githubClient_1.createGithubClient)();
         try {
-            // 1. Fetch repos for the organization
+            // 1. Fetch repositories
             const { data: repos } = await octokit.rest.repos.listForOrg({
                 org,
                 per_page: 100,
             });
             for (const repo of repos) {
-                console.log(`\nRepository: ${repo.name}`);
-                // 2. List collaborators for each repo
+                console.log(chalk_1.default.green(`\n📂 Repository: ${repo.name}`));
+                // 2. Get collaborators
                 const { data: collaborators } = await octokit.rest.repos.listCollaborators({
                     owner: org,
                     repo: repo.name,
                     per_page: 100,
                 });
-                // 3. Print or store collaborator data
+                const userCommits = {};
+                // 3. Fetch commit counts for each collaborator
                 for (const collab of collaborators) {
-                    // collab.permissions is an object like { admin: true, push: true, pull: true }
-                    console.log(` - ${collab.login}: ${JSON.stringify(collab.permissions)}`);
-                    // (Optional) Store collaborator info in DB
-                    // You could do something like:
-                    // 1) Upsert user
-                    // 2) Create or update user access record
-                    // Example:
-                    // const user = await prisma.user.upsert({
-                    //   where: { login: collab.login },
-                    //   update: {},
-                    //   create: { login: collab.login },
-                    // });
-                    //
-                    // const repoRecord = await prisma.repository.findFirst({
-                    //   where: {
-                    //     name: repo.name,
-                    //     // orgId if you track that, etc.
-                    //   },
-                    // });
-                    //
-                    // await prisma.userAccess.upsert({
-                    //   where: {
-                    //     userId_repoId: {
-                    //       userId: user.id,
-                    //       repoId: repoRecord?.id || "",
-                    //     },
-                    //   },
-                    //   update: {
-                    //     permissions: JSON.stringify(collab.permissions),
-                    //   },
-                    //   create: {
-                    //     userId: user.id,
-                    //     repoId: repoRecord?.id || "",
-                    //     permissions: JSON.stringify(collab.permissions),
-                    //   },
-                    // });
+                    const username = collab.login;
+                    userCommits[username] = 0; // Default commit count
+                    try {
+                        let commitCount = 0;
+                        let page = 1;
+                        let hasMoreCommits = true;
+                        while (hasMoreCommits) {
+                            const { data: commits } = await octokit.rest.repos.listCommits({
+                                owner: org,
+                                repo: repo.name,
+                                author: username,
+                                per_page: 100,
+                                page: page,
+                            });
+                            commitCount += commits.length;
+                            if (commits.length < 100) {
+                                hasMoreCommits = false;
+                            }
+                            else {
+                                page++;
+                            }
+                        }
+                        userCommits[username] = commitCount;
+                    }
+                    catch (commitError) {
+                        if (commitError.status === 409) {
+                            console.warn(chalk_1.default.yellow(`⚠️ Repository '${repo.name}' is empty. Skipping commits...`));
+                        }
+                        else {
+                            console.error(chalk_1.default.red(`❌ Failed to fetch commits for ${username} in ${repo.name}: ${commitError.message}`));
+                        }
+                    }
                 }
+                // 4. Format and display the output
+                const formattedUsers = collaborators
+                    .map((collab) => {
+                    const username = collab.login;
+                    const commitCount = userCommits[username] || 0;
+                    let role = chalk_1.default.gray("Contributor");
+                    if (collab.permissions?.admin)
+                        role = chalk_1.default.red("Admin");
+                    else if (collab.permissions?.maintain)
+                        role = chalk_1.default.blue("Maintainer");
+                    else if (collab.permissions?.push)
+                        role = chalk_1.default.green("Developer");
+                    else if (collab.permissions?.pull)
+                        role = chalk_1.default.yellow("Viewer");
+                    return { username, role, commits: commitCount };
+                })
+                    .sort((a, b) => b.commits - a.commits)
+                    .map((user, index) => `${chalk_1.default.magenta(index + 1)}. @${chalk_1.default.bold(user.username)} (${user.role}) - ${chalk_1.default.cyan(user.commits.toLocaleString())} commits`)
+                    .join("\n");
+                console.log(formattedUsers.length ? formattedUsers : chalk_1.default.gray("No collaborators found."));
             }
-            console.log("\nAccess control analysis completed successfully.");
+            console.log(chalk_1.default.green("\n✅ Access control analysis completed successfully."));
         }
         catch (error) {
-            console.error("Error analyzing access:", error);
+            console.error(chalk_1.default.red("❌ Error analyzing access:"), error);
             process.exit(1);
         }
         finally {
