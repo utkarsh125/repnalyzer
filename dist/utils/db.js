@@ -9,18 +9,20 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const readline_1 = __importDefault(require("readline"));
 const DB_FILE = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
+// Prompts the user for the DATABASE_URL.
 async function promptForDB() {
     return new Promise((resolve) => {
         const rl = readline_1.default.createInterface({
             input: process.stdin,
-            output: process.stdout
+            output: process.stdout,
         });
-        rl.question("Please enter DATABASE_URL: ", (answer) => {
+        rl.question('Please enter your DATABASE_URL: ', (answer) => {
             rl.close();
             resolve(answer.trim());
         });
     });
 }
+// Reads the DATABASE_URL from file; if not found, prompts the user and then saves it.
 async function getDBUrl() {
     if (fs_1.default.existsSync(DB_FILE)) {
         return fs_1.default.readFileSync(DB_FILE, { encoding: 'utf8' }).trim();
