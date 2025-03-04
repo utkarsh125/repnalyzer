@@ -31,8 +31,3 @@ async function getApiKey() {
         return token;
     }
 }
-// Usage
-(async () => {
-    const apiKey = await getApiKey();
-    console.log('API key loaded:', apiKey);
-})();
