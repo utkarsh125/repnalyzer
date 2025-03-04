@@ -14,6 +14,7 @@ import { getApiKey } from './utils/token';
 import listApisCommand from './commands/listApis';
 import path from 'path';
 import { scanCommand } from './commands/scan';
+
 dotenv.config();
 
 
@@ -28,10 +29,29 @@ async function updateDatabaseUrl() {
   console.log(chalk.green("DATABASE_URL updated successfully."));
 }
 
-// Function to update repnalyzer (prints update instructions)
-async function updateRepnalyzer() {
-  console.log(chalk.green("To update repnalyzer globally, run:"));
-  console.log(chalk.yellow("npm update -g repnalyzer"));
+// Function to update repnalyzer package.
+// It removes the stored API key and DATABASE_URL, then updates via npm.
+async function updateRepnalyzerPackage() {
+  const tokenFile = path.join(process.env.HOME || process.cwd(), '.repnalyzer_token');
+  const dbFile = path.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
+
+  if (fs.existsSync(tokenFile)) {
+    fs.unlinkSync(tokenFile);
+    console.log(chalk.green("Stored GITHUB_TOKEN removed."));
+  }
+  if (fs.existsSync(dbFile)) {
+    fs.unlinkSync(dbFile);
+    console.log(chalk.green("Stored DATABASE_URL removed."));
+  }
+
+  try {
+    console.log(chalk.blue("Updating repnalyzer package..."));
+    execSync('npm i -g repnalyzer', { stdio: 'inherit' });
+    console.log(chalk.green("repnalyzer updated successfully."));
+  } catch (err) {
+    console.error(chalk.red("Error updating repnalyzer:"), err);
+    process.exit(1);
+  }
 }
 
 // This function loads both the GITHUB_TOKEN and DATABASE_URL.
@@ -39,12 +59,12 @@ async function initializeEnv() {
   // Load GitHub token.
   const githubToken = await getApiKey();
   process.env.GITHUB_TOKEN = githubToken;
-  console.log(chalk.green('GITHUB_TOKEN loaded.'));
+  console.log(chalk.green("GITHUB_TOKEN loaded."));
 
   // Load DATABASE_URL.
   const dbUrl = await getDBUrl();
   process.env.DATABASE_URL = dbUrl;
-  console.log(chalk.green('DATABASE_URL loaded.'));
+  console.log(chalk.green("DATABASE_URL loaded."));
 }
 
 // Function to automatically run Prisma migrations.
@@ -52,13 +72,13 @@ async function initializeEnv() {
 function runPrismaMigrations() {
   try {
     console.log(chalk.blue("Applying Prisma migrations..."));
-    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    execSync("npx prisma migrate deploy", { stdio: "inherit" });
     console.log(chalk.green("Prisma migrations applied successfully."));
   } catch (err) {
     console.error(chalk.red("Error applying Prisma migrations:"), err);
     console.log(chalk.blue("Falling back to pushing schema..."));
     try {
-      execSync('npx prisma db push', { stdio: 'inherit' });
+      execSync("npx prisma db push", { stdio: "inherit" });
       console.log(chalk.green("Schema pushed successfully."));
     } catch (err2) {
       console.error(chalk.red("Error pushing schema:"), err2);
@@ -68,8 +88,8 @@ function runPrismaMigrations() {
 }
 
 async function main() {
-  console.log(chalk.blue(figlet.textSync('Repnalyzer')));
-  console.log(chalk.yellow('Repnalyzer is starting...\n'));
+  console.log(chalk.blue(figlet.textSync("Repnalyzer")));
+  console.log(chalk.yellow("Repnalyzer is starting...\n"));
 
   // Initialize environment variables.
   await initializeEnv();
@@ -79,9 +99,9 @@ async function main() {
 
   const program = new Command();
   program
-    .name('repnalyzer')
-    .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
-    .version('0.1.0');
+    .name("repnalyzer")
+    .description("A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...")
+    .version("0.1.0");
 
   // Register subcommands.
   program.addCommand(scanCommand());
@@ -90,46 +110,46 @@ async function main() {
 
   // Command to update the GitHub token.
   program
-    .command('update-token')
-    .description('Update your GITHUB_TOKEN')
+    .command("update-token")
+    .description("Update your GITHUB_TOKEN")
     .action(async () => {
-      const rl = require('readline').createInterface({
+      const rl = require("readline").createInterface({
         input: process.stdin,
         output: process.stdout,
       });
-      rl.question(chalk.yellow('Please enter your new GITHUB_TOKEN: '), (answer: string) => {
+      rl.question(chalk.yellow("Please enter your new GITHUB_TOKEN: "), (answer: string) => {
         rl.close();
         const newToken = answer.trim();
         fs.writeFileSync(
-          path.join(process.env.HOME || process.cwd(), '.repnalyzer_token'),
+          path.join(process.env.HOME || process.cwd(), ".repnalyzer_token"),
           newToken,
           { mode: 0o600 }
         );
-        console.log(chalk.green('Token updated.'));
+        console.log(chalk.green("Token updated."));
         process.env.GITHUB_TOKEN = newToken;
       });
     });
 
   // Command to update the DATABASE_URL.
   program
-    .command('update-db')
-    .description('Update your DATABASE_URL')
+    .command("update-db")
+    .description("Update your DATABASE_URL")
     .action(async () => {
       await updateDatabaseUrl();
     });
 
-  // Command to update repnalyzer itself.
+  // Command to update repnalyzer package.
   program
-    .command('update')
-    .description('Update repnalyzer')
+    .command("update")
+    .description("Update repnalyzer package (removes stored credentials before updating)")
     .action(async () => {
-      await updateRepnalyzer();
+      await updateRepnalyzerPackage();
     });
 
   // Default behavior: if an organization name is provided, show org stats;
   // otherwise, show a help prompt.
   program
-    .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
+    .argument("[orgname]", "GitHub organization name to view stats for (if provided, displays org stats)")
     .action(async (orgname) => {
       if (orgname) {
         // Call your getOrgStats() function here (if implemented).
