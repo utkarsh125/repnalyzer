@@ -43,40 +43,11 @@ const access_1 = require("./commands/access");
 const chalk_1 = __importDefault(require("chalk"));
 const figlet_1 = __importDefault(require("figlet"));
 const fs_1 = __importDefault(require("fs"));
+const token_1 = require("./utils/token");
 const listApis_1 = __importDefault(require("./commands/listApis"));
 const path_1 = __importDefault(require("path"));
-const readline_1 = __importDefault(require("readline"));
 const scan_1 = require("./commands/scan");
 dotenv.config();
-// Define a token file in the current directory.
-const TOKEN_FILE = path_1.default.join(process.cwd(), '.repnalyzer_token');
-// Prompts the user to enter their GitHub token.
-async function promptForToken() {
-    return new Promise((resolve) => {
-        const rl = readline_1.default.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-            terminal: true,
-        });
-        rl.question(chalk_1.default.yellow('Please enter your GITHUB_TOKEN: '), (answer) => {
-            rl.close();
-            resolve(answer.trim());
-        });
-    });
-}
-// Retrieve the token from file or prompt the user if not available.
-async function getGithubToken() {
-    if (fs_1.default.existsSync(TOKEN_FILE)) {
-        const token = fs_1.default.readFileSync(TOKEN_FILE, { encoding: 'utf8' }).trim();
-        return token;
-    }
-    else {
-        const token = await promptForToken();
-        // Write the token to the file with restricted permissions.
-        fs_1.default.writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
-        return token;
-    }
-}
 // Function to check if the user is affiliated with any GitHub organizations.
 async function checkUserOrganizations(token) {
     try {
@@ -134,7 +105,6 @@ async function getUserStats(token) {
 // Fetches and prints organization statistics (e.g., number of public repos and members)
 async function getOrgStats(token, orgname) {
     try {
-        // Fetch organization details.
         const orgResponse = await fetch(`https://api.github.com/orgs/${orgname}`, {
             headers: {
                 'Authorization': `token ${token}`,
@@ -146,7 +116,6 @@ async function getOrgStats(token, orgname) {
             return;
         }
         const orgData = await orgResponse.json();
-        // Fetch organization members.
         const membersResponse = await fetch(`https://api.github.com/orgs/${orgname}/members?per_page=100`, {
             headers: {
                 'Authorization': `token ${token}`,
@@ -164,14 +133,14 @@ async function getOrgStats(token, orgname) {
     }
 }
 async function main() {
-    // Print a beautiful banner.
+    // Print the banner
     console.log(chalk_1.default.blue(figlet_1.default.textSync('Repnalyzer')));
     console.log(chalk_1.default.yellow('Repnalyzer is starting...\n'));
-    // Load the GitHub token.
-    const githubToken = await getGithubToken();
+    // Load the GitHub token using the utility function.
+    const githubToken = await (0, token_1.getApiKey)();
     console.log(chalk_1.default.green('GITHUB_TOKEN loaded.'));
     process.env.GITHUB_TOKEN = githubToken;
-    // Check user organizations.
+    // Check user's organization affiliation.
     await checkUserOrganizations(githubToken);
     const program = new commander_1.Command();
     program
@@ -187,11 +156,19 @@ async function main() {
         .command('update-token')
         .description('Update your GITHUB_TOKEN')
         .action(async () => {
-        const newToken = await promptForToken();
-        fs_1.default.writeFileSync(TOKEN_FILE, newToken, { mode: 0o600 });
-        console.log(chalk_1.default.green('Token updated.'));
-        process.env.GITHUB_TOKEN = newToken;
-        await checkUserOrganizations(newToken);
+        // Prompt the user for a new token
+        const rl = require('readline').createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+        rl.question(chalk_1.default.yellow('Please enter your new GITHUB_TOKEN: '), (answer) => {
+            rl.close();
+            const newToken = answer.trim();
+            // Overwrite the token file (the same path as defined in your token.ts module)
+            fs_1.default.writeFileSync(path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_token'), newToken, { mode: 0o600 });
+            console.log(chalk_1.default.green('Token updated.'));
+            process.env.GITHUB_TOKEN = newToken;
+        });
     });
     // Default behavior when no subcommand or argument is provided.
     // It displays the user profile info and a prompt message.

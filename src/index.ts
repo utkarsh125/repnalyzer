@@ -7,43 +7,12 @@ import { accessCommand } from './commands/access';
 import chalk from 'chalk';
 import figlet from 'figlet';
 import fs from 'fs';
+import { getApiKey } from './utils/token';
 import listApisCommand from './commands/listApis';
 import path from 'path';
-import readline from 'readline';
 import { scanCommand } from './commands/scan';
 
 dotenv.config();
-
-// Define a token file in the current directory.
-const TOKEN_FILE = path.join(process.cwd(), '.repnalyzer_token');
-
-// Prompts the user to enter their GitHub token.
-async function promptForToken(): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      terminal: true,
-    });
-    rl.question(chalk.yellow('Please enter your GITHUB_TOKEN: '), (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-// Retrieve the token from file or prompt the user if not available.
-async function getGithubToken(): Promise<string> {
-  if (fs.existsSync(TOKEN_FILE)) {
-    const token = fs.readFileSync(TOKEN_FILE, { encoding: 'utf8' }).trim();
-    return token;
-  } else {
-    const token = await promptForToken();
-    // Write the token to the file with restricted permissions.
-    fs.writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
-    return token;
-  }
-}
 
 // Function to check if the user is affiliated with any GitHub organizations.
 async function checkUserOrganizations(token: string): Promise<boolean> {
@@ -104,7 +73,6 @@ async function getUserStats(token: string) {
 // Fetches and prints organization statistics (e.g., number of public repos and members)
 async function getOrgStats(token: string, orgname: string) {
   try {
-    // Fetch organization details.
     const orgResponse = await fetch(`https://api.github.com/orgs/${orgname}`, {
       headers: {
         'Authorization': `token ${token}`,
@@ -116,7 +84,6 @@ async function getOrgStats(token: string, orgname: string) {
       return;
     }
     const orgData = await orgResponse.json();
-    // Fetch organization members.
     const membersResponse = await fetch(`https://api.github.com/orgs/${orgname}/members?per_page=100`, {
       headers: {
         'Authorization': `token ${token}`,
@@ -135,16 +102,16 @@ async function getOrgStats(token: string, orgname: string) {
 }
 
 async function main() {
-  // Print a beautiful banner.
+  // Print the banner
   console.log(chalk.blue(figlet.textSync('Repnalyzer')));
   console.log(chalk.yellow('Repnalyzer is starting...\n'));
 
-  // Load the GitHub token.
-  const githubToken = await getGithubToken();
+  // Load the GitHub token using the utility function.
+  const githubToken = await getApiKey();
   console.log(chalk.green('GITHUB_TOKEN loaded.'));
   process.env.GITHUB_TOKEN = githubToken;
 
-  // Check user organizations.
+  // Check user's organization affiliation.
   await checkUserOrganizations(githubToken);
 
   const program = new Command();
@@ -164,11 +131,23 @@ async function main() {
     .command('update-token')
     .description('Update your GITHUB_TOKEN')
     .action(async () => {
-      const newToken = await promptForToken();
-      fs.writeFileSync(TOKEN_FILE, newToken, { mode: 0o600 });
-      console.log(chalk.green('Token updated.'));
-      process.env.GITHUB_TOKEN = newToken;
-      await checkUserOrganizations(newToken);
+      // Prompt the user for a new token
+      const rl = require('readline').createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+      rl.question(chalk.yellow('Please enter your new GITHUB_TOKEN: '), (answer: string) => {
+        rl.close();
+        const newToken = answer.trim();
+        // Overwrite the token file (the same path as defined in your token.ts module)
+        fs.writeFileSync(
+          path.join(process.env.HOME || process.cwd(), '.repnalyzer_token'),
+          newToken,
+          { mode: 0o600 }
+        );
+        console.log(chalk.green('Token updated.'));
+        process.env.GITHUB_TOKEN = newToken;
+      });
     });
 
   // Default behavior when no subcommand or argument is provided.
