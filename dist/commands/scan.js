@@ -9,7 +9,6 @@ const client_1 = require("@prisma/client");
 const chalk_1 = __importDefault(require("chalk"));
 const githubClient_1 = require("../lib/githubClient");
 const figlet_1 = __importDefault(require("figlet"));
-const prisma = new client_1.PrismaClient();
 function scanCommand() {
     const scan = new commander_1.Command("scan");
     scan
@@ -24,6 +23,8 @@ function scanCommand() {
         console.log(chalk_1.default.blue(figlet_1.default.textSync("SCAN")));
         // Await the async GitHub client creation
         const octokit = await (0, githubClient_1.createGithubClient)(process.env.GITHUB_TOKEN);
+        // Instantiate PrismaClient here so that DATABASE_URL is available.
+        const prisma = new client_1.PrismaClient();
         try {
             // 1. Fetch the repos from the organization
             const { data: repos } = await octokit.rest.repos.listForOrg({
@@ -58,7 +59,7 @@ function scanCommand() {
                         throw error;
                     }
                 }
-                // 2c. Check for GitHub Actions workflows and list errors (1 error per action file)
+                // 2c. Check for GitHub Actions workflows and list errors
                 try {
                     const { data: workflowsData } = await octokit.request("GET /repos/{owner}/{repo}/actions/workflows", { owner: org, repo: repo.name });
                     if (!workflowsData.workflows || workflowsData.workflows.length === 0) {

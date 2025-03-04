@@ -9,7 +9,6 @@ const client_1 = require("@prisma/client");
 const chalk_1 = __importDefault(require("chalk"));
 const githubClient_1 = require("../lib/githubClient");
 const figlet_1 = __importDefault(require("figlet"));
-const prisma = new client_1.PrismaClient();
 function listApisCommand() {
     const listApis = new commander_1.Command("list-apis");
     listApis
@@ -26,6 +25,8 @@ function listApisCommand() {
         // Get token from process.env and await GitHub client creation
         const token = process.env.GITHUB_TOKEN;
         const octokit = await (0, githubClient_1.createGithubClient)(token);
+        // Instantiate PrismaClient here
+        const prisma = new client_1.PrismaClient();
         try {
             const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
                 org,
@@ -36,13 +37,9 @@ function listApisCommand() {
                 console.log(chalk_1.default.yellow(`No repositories found in organization ${org}`));
                 process.exit(0);
             }
-            let orgRecord = await prisma.organization.findUnique({
-                where: { name: org },
-            });
+            let orgRecord = await prisma.organization.findUnique({ where: { name: org } });
             if (!orgRecord) {
-                orgRecord = await prisma.organization.create({
-                    data: { name: org },
-                });
+                orgRecord = await prisma.organization.create({ data: { name: org } });
             }
             for (const repoData of repos) {
                 if (repo && repoData.name !== repo)
@@ -101,12 +98,8 @@ function listApisCommand() {
                         if (endpointMatches) {
                             console.log(chalk_1.default.magenta(`Endpoint matches found in ${file.path}: ${endpointMatches.join(", ")}`));
                             for (const url of endpointMatches) {
-                                // Process every URL found
                                 const existingEndpoint = await prisma.apiEndpoint.findFirst({
-                                    where: {
-                                        endpoint: url,
-                                        repository: { id: repoRecord.id },
-                                    },
+                                    where: { endpoint: url, repository: { id: repoRecord.id } },
                                 });
                                 if (!existingEndpoint) {
                                     await prisma.apiEndpoint.create({
@@ -128,10 +121,7 @@ function listApisCommand() {
                             keyMatches.forEach(async (match) => {
                                 const key = match[1];
                                 const existingKey = await prisma.apiKey.findFirst({
-                                    where: {
-                                        key,
-                                        repository: { id: repoRecord.id },
-                                    },
+                                    where: { key, repository: { id: repoRecord.id } },
                                 });
                                 if (!existingKey) {
                                     await prisma.apiKey.create({

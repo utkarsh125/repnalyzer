@@ -9,7 +9,6 @@ const client_1 = require("@prisma/client");
 const chalk_1 = __importDefault(require("chalk"));
 const githubClient_1 = require("../lib/githubClient");
 const figlet_1 = __importDefault(require("figlet"));
-const prisma = new client_1.PrismaClient();
 function accessCommand() {
     const access = new commander_1.Command("access");
     access
@@ -25,6 +24,8 @@ function accessCommand() {
         console.log(chalk_1.default.cyan("🔍 Repanalyzer is starting...\n"));
         // Await the async GitHub client creation (will prompt if token is missing)
         const octokit = await (0, githubClient_1.createGithubClient)(process.env.GITHUB_TOKEN);
+        // Instantiate PrismaClient here
+        const prisma = new client_1.PrismaClient();
         try {
             // 1. Fetch repositories
             const { data: repos } = await octokit.rest.repos.listForOrg({
