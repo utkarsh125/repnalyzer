@@ -51,7 +51,7 @@ npx prisma migrate deploy
 Folder Structure
 
 Below is the structure of the repository (excluding the dist folder):
-
+```
 .
 ├── prisma
 │   ├── migrations
@@ -77,7 +77,7 @@ Below is the structure of the repository (excluding the dist folder):
 ├── package-lock.json
 ├── tsconfig.json
 └── tsconfig.tsbuildinfo
-
+```
 ### Usage
 ##### Running Commands
 
