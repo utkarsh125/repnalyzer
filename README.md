@@ -5,7 +5,7 @@
 [![GitHub Access Token](https://img.shields.io/badge/GitHub_Access_Token-secure-brightgreen.svg)](#)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Repnalyzer is a Node.js and TypeScript-based project that scans GitHub repositories for API endpoints, API keys, and connected API integrations (such as webhooks and GitHub App installations). It uses a GitHub Access Token to securely access repository data and leverages Prisma as a persistent store for your analysis data.
+**Repnalyzer** is a Node.js and TypeScript-based project that scans GitHub repositories for API endpoints, API keys, and connected API integrations (such as webhooks and GitHub App installations). It uses a GitHub Access Token to securely access repository data and leverages Prisma as a persistent store for your analysis data.
 
 ---
 
@@ -15,7 +15,7 @@ Repnalyzer is a Node.js and TypeScript-based project that scans GitHub repositor
 - **API Key Extraction:** Detects potential API keys embedded in source code.
 - **API Connections:** Identifies repository webhooks and GitHub integrations.
 - **Persistent Storage:** Uses Prisma to store scanned data in a PostgreSQL database.
-- **Command-Line Interface:** Implements commands (e.g., `access`, `listApis`, and `scan`) for various analysis functions.
+- **Command-Line Interface:** Implements commands (`access`, `listApis`, and `scan`) for various analysis functions.
 
 ---
 
@@ -31,26 +31,31 @@ Repnalyzer is a Node.js and TypeScript-based project that scans GitHub repositor
 
 ## Installation
 
-1. **Clone the Repository:**
+### Clone the Repository:
 
-   ```bash
-   git clone https://github.com/yourusername/repnalyzer.git
-   cd repnalyzer
-   ```
+```bash
+git clone https://github.com/yourusername/repnalyzer.git
+cd repnalyzer
+```
 
 ### Install Dependencies:
 
-```npm install```
+```bash
+npm install
+```
 
 ### Apply Prisma Migrations:
 
-``` 
+```bash
 npx prisma migrate deploy
 ```
 
-Folder Structure
+---
 
-Below is the structure of the repository (excluding the dist folder):
+## Folder Structure
+
+Below is the structure of the repository (excluding the `dist` folder):
+
 ```
 .
 ├── prisma
@@ -78,30 +83,45 @@ Below is the structure of the repository (excluding the dist folder):
 ├── tsconfig.json
 └── tsconfig.tsbuildinfo
 ```
-### Usage
-##### Running Commands
+
+---
+
+## Usage
+
+### Running Commands
 
 Repnalyzer exposes several commands via the CLI. For example, to list all APIs:
 
-```
+```bash
 npm run cli list-apis -- --org <GitHubOrg> [--repo <repository>]
 ```
-Other commands include access and scan. Check the command descriptions in their respective source files in src/commands.
-Development
+
+Other commands include `access` and `scan`. Check the command descriptions in their respective source files in `src/commands`.
+
+---
+
+## Development
 
 To compile the TypeScript files, run:
 
+```bash
 npm run build
+```
 
 Then, run the project using:
 
-```
+```bash
 npm start
 ```
 
-Contributing
+---
+
+## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request with your changes.
-License
 
-This project is licensed under the MIT License.
+---
+
+## License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
