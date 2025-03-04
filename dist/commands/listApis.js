@@ -17,16 +17,15 @@ function listApisCommand() {
         .option("--org <org>", "GitHub organization name (required)")
         .option("--repo <repo>", "Filter by repository name")
         .action(async (options) => {
-        // Display a big "LIST APIS" banner using figlet and chalk
         console.log(chalk_1.default.blue(figlet_1.default.textSync("LIST APIS")));
         const { org, repo } = options;
         if (!org) {
             console.error(chalk_1.default.red("Please specify --org <org>"));
             process.exit(1);
         }
-        // Pass the token from the environment (which should be set by your main script)
+        // Get token from process.env and await GitHub client creation
         const token = process.env.GITHUB_TOKEN;
-        const octokit = (0, githubClient_1.createGithubClient)(token);
+        const octokit = await (0, githubClient_1.createGithubClient)(token);
         try {
             const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
                 org,
@@ -102,7 +101,7 @@ function listApisCommand() {
                         if (endpointMatches) {
                             console.log(chalk_1.default.magenta(`Endpoint matches found in ${file.path}: ${endpointMatches.join(", ")}`));
                             for (const url of endpointMatches) {
-                                // Removed filtering condition so all endpoints are processed
+                                // Process every URL found
                                 const existingEndpoint = await prisma.apiEndpoint.findFirst({
                                     where: {
                                         endpoint: url,
@@ -231,11 +230,7 @@ function listApisCommand() {
         }
         try {
             const endpoints = await prisma.apiEndpoint.findMany({
-                include: {
-                    repository: {
-                        include: { organization: true },
-                    },
-                },
+                include: { repository: { include: { organization: true } } },
                 where: {
                     repository: {
                         ...(org ? { organization: { name: org } } : {}),
@@ -258,11 +253,7 @@ function listApisCommand() {
                     endpoints.map((ep) => ep.endpoint).join(" \n")));
             }
             const apiKeys = await prisma.apiKey.findMany({
-                include: {
-                    repository: {
-                        include: { organization: true },
-                    },
-                },
+                include: { repository: { include: { organization: true } } },
                 where: {
                     repository: {
                         ...(org ? { organization: { name: org } } : {}),
@@ -280,11 +271,7 @@ function listApisCommand() {
                 });
             }
             const connections = await prisma.apiConnection.findMany({
-                include: {
-                    repository: {
-                        include: { organization: true },
-                    },
-                },
+                include: { repository: { include: { organization: true } } },
                 where: {
                     repository: {
                         ...(org ? { organization: { name: org } } : {}),
@@ -292,10 +279,7 @@ function listApisCommand() {
                     },
                 },
             });
-            if (connections.length === 0) {
-                // console.log(chalk.yellow("No API connections found in the local database."));
-            }
-            else {
+            if (connections.length !== 0) {
                 connections.forEach((connection) => {
                     console.log(chalk_1.default.green(`Organization: ${connection.repository.organization.name}`));
                     console.log(chalk_1.default.green(`Repository: ${connection.repository.name}`));

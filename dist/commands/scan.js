@@ -21,9 +21,9 @@ function scanCommand() {
             console.error(chalk_1.default.red("Please specify --org <org>"));
             process.exit(1);
         }
-        // Display a big "SCAN" banner using figlet and chalk
         console.log(chalk_1.default.blue(figlet_1.default.textSync("SCAN")));
-        const octokit = (0, githubClient_1.createGithubClient)();
+        // Await the async GitHub client creation
+        const octokit = await (0, githubClient_1.createGithubClient)(process.env.GITHUB_TOKEN);
         try {
             // 1. Fetch the repos from the organization
             const { data: repos } = await octokit.rest.repos.listForOrg({
@@ -37,14 +37,13 @@ function scanCommand() {
             // 2. Process each repository
             for (const repo of repos) {
                 console.log(chalk_1.default.green(`\nScanning repo: ${repo.name}`));
-                // Handle empty repositories gracefully by checking the repo size.
                 if (repo.size === 0) {
                     console.log(chalk_1.default.yellow(`Repo ${repo.name} is empty. Skipping further scans.`));
                     continue;
                 }
                 // 2a. Fetch Dependabot alerts
                 const { data: dependabotAlerts } = await octokit.request("GET /repos/{owner}/{repo}/dependabot/alerts", { owner: org, repo: repo.name });
-                // 2b. Fetch Code scanning alerts with graceful error handling
+                // 2b. Fetch Code scanning alerts
                 let codeScanAlerts = [];
                 try {
                     const response = await octokit.request("GET /repos/{owner}/{repo}/code-scanning/alerts", { owner: org, repo: repo.name });
@@ -69,7 +68,6 @@ function scanCommand() {
                         console.log(chalk_1.default.green(`GitHub Actions workflows found for repo: ${repo.name}`));
                         let workflowErrors = [];
                         for (const workflow of workflowsData.workflows) {
-                            // For each workflow, fetch the latest run
                             const { data: runsData } = await octokit.request("GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs", { owner: org, repo: repo.name, workflow_id: workflow.id, per_page: 1 });
                             if (runsData.total_count > 0) {
                                 const latestRun = runsData.workflow_runs[0];
@@ -81,7 +79,6 @@ function scanCommand() {
                                 }
                             }
                         }
-                        // Output errors if any, else print that no errors were found
                         if (workflowErrors.length > 0) {
                             workflowErrors.forEach((err) => {
                                 console.log(chalk_1.default.red(`Error in workflow "${err.workflow}": ${err.error}`));
@@ -101,26 +98,16 @@ function scanCommand() {
                     }
                 }
                 // 2d. Ensure organization and repository exist in the database.
-                let orgRecord = await prisma.organization.findUnique({
-                    where: { name: org },
-                });
+                let orgRecord = await prisma.organization.findUnique({ where: { name: org } });
                 if (!orgRecord) {
-                    orgRecord = await prisma.organization.create({
-                        data: { name: org },
-                    });
+                    orgRecord = await prisma.organization.create({ data: { name: org } });
                 }
                 let repoRecord = await prisma.repository.findFirst({
-                    where: {
-                        name: repo.name,
-                        orgId: orgRecord.id,
-                    },
+                    where: { name: repo.name, orgId: orgRecord.id },
                 });
                 if (!repoRecord) {
                     repoRecord = await prisma.repository.create({
-                        data: {
-                            name: repo.name,
-                            organization: { connect: { id: orgRecord.id } },
-                        },
+                        data: { name: repo.name, organization: { connect: { id: orgRecord.id } } },
                     });
                 }
                 // 2e. Insert Dependabot alerts into the database

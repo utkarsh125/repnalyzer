@@ -23,7 +23,8 @@ function accessCommand() {
         }
         console.log(chalk_1.default.blue(figlet_1.default.textSync("access")));
         console.log(chalk_1.default.cyan("🔍 Repanalyzer is starting...\n"));
-        const octokit = (0, githubClient_1.createGithubClient)();
+        // Await the async GitHub client creation (will prompt if token is missing)
+        const octokit = await (0, githubClient_1.createGithubClient)(process.env.GITHUB_TOKEN);
         try {
             // 1. Fetch repositories
             const { data: repos } = await octokit.rest.repos.listForOrg({

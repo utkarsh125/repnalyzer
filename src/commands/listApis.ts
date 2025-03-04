@@ -16,7 +16,6 @@ export function listApisCommand() {
     .option("--org <org>", "GitHub organization name (required)")
     .option("--repo <repo>", "Filter by repository name")
     .action(async (options) => {
-      // Display a big "LIST APIS" banner using figlet and chalk
       console.log(chalk.blue(figlet.textSync("LIST APIS")));
 
       const { org, repo } = options;
@@ -25,9 +24,9 @@ export function listApisCommand() {
         process.exit(1);
       }
 
-      // Pass the token from the environment (which should be set by your main script)
+      // Get token from process.env and await GitHub client creation
       const token = process.env.GITHUB_TOKEN;
-      const octokit = createGithubClient(token);
+      const octokit = await createGithubClient(token);
 
       try {
         const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
@@ -78,9 +77,7 @@ export function listApisCommand() {
           } catch (treeError: unknown) {
             const errorMsg =
               treeError instanceof Error ? treeError.message : String(treeError);
-            console.error(
-              chalk.red(`Could not fetch file tree for ${repoData.name}: ${errorMsg}`)
-            );
+            console.error(chalk.red(`Could not fetch file tree for ${repoData.name}: ${errorMsg}`));
             continue;
           }
           const tree = treeResponse.data.tree;
@@ -124,7 +121,7 @@ export function listApisCommand() {
                   )
                 );
                 for (const url of endpointMatches) {
-                  // Removed filtering condition so all endpoints are processed
+                  // Process every URL found
                   const existingEndpoint = await prisma.apiEndpoint.findFirst({
                     where: {
                       endpoint: url,
@@ -172,11 +169,7 @@ export function listApisCommand() {
             } catch (fileError: unknown) {
               const errorMsg =
                 fileError instanceof Error ? fileError.message : String(fileError);
-              console.error(
-                chalk.red(
-                  `Error scanning file ${file.path} in ${repoData.name}: ${errorMsg}`
-                )
-              );
+              console.error(chalk.red(`Error scanning file ${file.path} in ${repoData.name}: ${errorMsg}`));
             }
           }
 
@@ -240,38 +233,25 @@ export function listApisCommand() {
                     config: JSON.stringify(installation),
                   },
                 });
-                console.log(
-                  chalk.yellow(
-                    `Found integration in ${repoData.name}: GitHub App installation with id ${installation.id}`
-                  )
-                );
+                console.log(chalk.yellow(`Found integration in ${repoData.name}: GitHub App installation with id ${installation.id}`));
               }
             }
           } catch (integrationError: unknown) {
             const errorMsg =
               integrationError instanceof Error ? integrationError.message : String(integrationError);
-            console.log(
-              chalk.yellow(
-                `No integration found for repository ${repoData.name} or error: ${errorMsg}`
-              )
-            );
+            console.log(chalk.yellow(`No integration found for repository ${repoData.name} or error: ${errorMsg}`));
           }
 
           console.log(chalk.yellow(`No service connections API available for repository ${repoData.name}.`));
         }
       } catch (scanError: unknown) {
-        const errorMsg =
-          scanError instanceof Error ? scanError.message : String(scanError);
+        const errorMsg = scanError instanceof Error ? scanError.message : String(scanError);
         console.error(chalk.red("Error scanning repositories:"), errorMsg);
       }
 
       try {
         const endpoints = await prisma.apiEndpoint.findMany({
-          include: {
-            repository: {
-              include: { organization: true },
-            },
-          },
+          include: { repository: { include: { organization: true } } },
           where: {
             repository: {
               ...(org ? { organization: { name: org } } : {}),
@@ -287,9 +267,7 @@ export function listApisCommand() {
             console.log(chalk.green(`Organization: ${endpoint.repository.organization.name}`));
             console.log(chalk.green(`Repository: ${endpoint.repository.name}`));
             console.log(chalk.green(`API Endpoint: ${endpoint.endpoint}`));
-            console.log(
-              chalk.gray(`Discovered on: ${new Date(endpoint.createdAt).toLocaleString()}`)
-            );
+            console.log(chalk.gray(`Discovered on: ${new Date(endpoint.createdAt).toLocaleString()}`));
             console.log(chalk.blue("-------------------------------------------------"));
           });
           console.log(
@@ -301,11 +279,7 @@ export function listApisCommand() {
         }
 
         const apiKeys = await prisma.apiKey.findMany({
-          include: {
-            repository: {
-              include: { organization: true },
-            },
-          },
+          include: { repository: { include: { organization: true } } },
           where: {
             repository: {
               ...(org ? { organization: { name: org } } : {}),
@@ -318,19 +292,13 @@ export function listApisCommand() {
             console.log(chalk.green(`Organization: ${apiKey.repository.organization.name}`));
             console.log(chalk.green(`Repository: ${apiKey.repository.name}`));
             console.log(chalk.green(`API Key: ${apiKey.key}`));
-            console.log(
-              chalk.gray(`Stored on: ${new Date(apiKey.createdAt).toLocaleString()}`)
-            );
+            console.log(chalk.gray(`Stored on: ${new Date(apiKey.createdAt).toLocaleString()}`));
             console.log(chalk.blue("-------------------------------------------------"));
           });
         }
 
         const connections = await prisma.apiConnection.findMany({
-          include: {
-            repository: {
-              include: { organization: true },
-            },
-          },
+          include: { repository: { include: { organization: true } } },
           where: {
             repository: {
               ...(org ? { organization: { name: org } } : {}),
@@ -338,17 +306,13 @@ export function listApisCommand() {
             },
           },
         });
-        if (connections.length === 0) {
-          // console.log(chalk.yellow("No API connections found in the local database."));
-        } else {
+        if (connections.length !== 0) {
           connections.forEach((connection) => {
             console.log(chalk.green(`Organization: ${connection.repository.organization.name}`));
             console.log(chalk.green(`Repository: ${connection.repository.name}`));
             console.log(chalk.green(`Connection Type: ${connection.connectionType}`));
             console.log(chalk.green(`Identifier: ${connection.identifier}`));
-            console.log(
-              chalk.gray(`Stored on: ${new Date(connection.createdAt).toLocaleString()}`)
-            );
+            console.log(chalk.gray(`Stored on: ${new Date(connection.createdAt).toLocaleString()}`));
             console.log(chalk.blue("-------------------------------------------------"));
           });
           console.log(
@@ -359,8 +323,7 @@ export function listApisCommand() {
           );
         }
       } catch (fetchError: unknown) {
-        const errorMsg =
-          fetchError instanceof Error ? fetchError.message : String(fetchError);
+        const errorMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
         console.error(chalk.red("Error retrieving data from local DB:"), errorMsg);
       } finally {
         await prisma.$disconnect();

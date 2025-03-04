@@ -4,7 +4,7 @@ import readline from 'readline';
 
 const TOKEN_FILE = path.join(process.env.HOME || process.cwd(), '.repnalyzer_token');
 
-async function promptForToken(): Promise<string> {
+export async function promptForToken(): Promise<string> {
   return new Promise((resolve) => {
     const rl = readline.createInterface({
       input: process.stdin,
