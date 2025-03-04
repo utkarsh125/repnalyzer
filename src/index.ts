@@ -48,15 +48,22 @@ async function initializeEnv() {
 }
 
 // Function to automatically run Prisma migrations.
+// If migrations fail, it falls back to pushing the schema.
 function runPrismaMigrations() {
   try {
     console.log(chalk.blue("Applying Prisma migrations..."));
-    // Using 'migrate deploy' for production (or use 'migrate dev' for development)
     execSync('npx prisma migrate deploy', { stdio: 'inherit' });
     console.log(chalk.green("Prisma migrations applied successfully."));
   } catch (err) {
     console.error(chalk.red("Error applying Prisma migrations:"), err);
-    process.exit(1);
+    console.log(chalk.blue("Falling back to pushing schema..."));
+    try {
+      execSync('npx prisma db push', { stdio: 'inherit' });
+      console.log(chalk.green("Schema pushed successfully."));
+    } catch (err2) {
+      console.error(chalk.red("Error pushing schema:"), err2);
+      process.exit(1);
+    }
   }
 }
 
@@ -64,10 +71,10 @@ async function main() {
   console.log(chalk.blue(figlet.textSync('Repnalyzer')));
   console.log(chalk.yellow('Repnalyzer is starting...\n'));
 
-  // Initialize environment variables before anything else.
+  // Initialize environment variables.
   await initializeEnv();
 
-  // Automatically apply Prisma migrations.
+  // Automatically apply Prisma migrations before proceeding.
   runPrismaMigrations();
 
   const program = new Command();
@@ -76,7 +83,7 @@ async function main() {
     .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
     .version('0.1.0');
 
-  // Register subcommands (each will instantiate its own PrismaClient inside its action callback)
+  // Register subcommands.
   program.addCommand(scanCommand());
   program.addCommand(accessCommand());
   program.addCommand(listApisCommand());
@@ -119,15 +126,15 @@ async function main() {
       await updateRepnalyzer();
     });
 
-  // Default behavior: if an organization name is provided, you could show org stats;
+  // Default behavior: if an organization name is provided, show org stats;
   // otherwise, show a help prompt.
   program
     .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
     .action(async (orgname) => {
       if (orgname) {
-        // Call your getOrgStats() function here, if implemented.
+        // Call your getOrgStats() function here (if implemented).
       } else {
-        // Call your getUserStats() function here, if implemented.
+        // Call your getUserStats() function here (if implemented).
         console.log(chalk.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
       }
     });

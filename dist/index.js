@@ -63,7 +63,7 @@ async function updateRepnalyzer() {
     console.log(chalk_1.default.green("To update repnalyzer globally, run:"));
     console.log(chalk_1.default.yellow("npm update -g repnalyzer"));
 }
-// Function to initialize environment variables.
+// This function loads both the GITHUB_TOKEN and DATABASE_URL.
 async function initializeEnv() {
     // Load GitHub token.
     const githubToken = await (0, token_1.getApiKey)();
@@ -75,22 +75,30 @@ async function initializeEnv() {
     console.log(chalk_1.default.green('DATABASE_URL loaded.'));
 }
 // Function to automatically run Prisma migrations.
+// If migrations fail, it falls back to pushing the schema.
 function runPrismaMigrations() {
     try {
         console.log(chalk_1.default.blue("Applying Prisma migrations..."));
-        // You can use migrate deploy in production or migrate dev during development.
         (0, child_process_1.execSync)('npx prisma migrate deploy', { stdio: 'inherit' });
         console.log(chalk_1.default.green("Prisma migrations applied successfully."));
     }
     catch (err) {
         console.error(chalk_1.default.red("Error applying Prisma migrations:"), err);
-        process.exit(1);
+        console.log(chalk_1.default.blue("Falling back to pushing schema..."));
+        try {
+            (0, child_process_1.execSync)('npx prisma db push', { stdio: 'inherit' });
+            console.log(chalk_1.default.green("Schema pushed successfully."));
+        }
+        catch (err2) {
+            console.error(chalk_1.default.red("Error pushing schema:"), err2);
+            process.exit(1);
+        }
     }
 }
 async function main() {
     console.log(chalk_1.default.blue(figlet_1.default.textSync('Repnalyzer')));
     console.log(chalk_1.default.yellow('Repnalyzer is starting...\n'));
-    // Initialize environment variables (GITHUB_TOKEN and DATABASE_URL)
+    // Initialize environment variables.
     await initializeEnv();
     // Automatically apply Prisma migrations before proceeding.
     runPrismaMigrations();
@@ -99,7 +107,7 @@ async function main() {
         .name('repnalyzer')
         .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
         .version('0.1.0');
-    // Register subcommands (they instantiate PrismaClient in their action callbacks)
+    // Register subcommands.
     program.addCommand((0, scan_1.scanCommand)());
     program.addCommand((0, access_1.accessCommand)());
     program.addCommand((0, listApis_1.default)());
@@ -140,10 +148,10 @@ async function main() {
         .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
         .action(async (orgname) => {
         if (orgname) {
-            // For example, call your getOrgStats() function here.
+            // Call your getOrgStats() function here (if implemented).
         }
         else {
-            // For example, call your getUserStats() function here.
+            // Call your getUserStats() function here (if implemented).
             console.log(chalk_1.default.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
         }
     });
