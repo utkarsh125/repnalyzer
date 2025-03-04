@@ -33,13 +33,19 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv = __importStar(require("dotenv"));
 const commander_1 = require("commander");
 const access_1 = require("./commands/access");
+const listApis_1 = __importDefault(require("./commands/listApis"));
 const scan_1 = require("./commands/scan");
 dotenv.config();
 console.log('Repnalyzering is starting...');
+//TODO: Instead of taking the GITHUB_TOKEN from the environment variables take it from the user input if possible
+//TODO: then store it safely and on update or exit remove it from the local directory.
 console.log('GITHUB_TOKEN:', process.env.GITHUB_TOKEN);
 const program = new commander_1.Command();
 program
@@ -49,4 +55,5 @@ program
 //TODO: Add subcommands.
 program.addCommand((0, scan_1.scanCommand)());
 program.addCommand((0, access_1.accessCommand)());
+program.addCommand((0, listApis_1.default)());
 program.parse(process.argv);
