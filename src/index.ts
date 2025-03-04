@@ -7,20 +7,19 @@ import { getDBUrl, promptForDB } from './utils/db';
 import { Command } from 'commander';
 import { accessCommand } from './commands/access';
 import chalk from 'chalk';
+import { execSync } from 'child_process';
 import figlet from 'figlet';
 import fs from 'fs';
-// Import utility functions for GitHub token and Database URL.
 import { getApiKey } from './utils/token';
 import listApisCommand from './commands/listApis';
 import path from 'path';
-// Import your command modules.
 import { scanCommand } from './commands/scan';
 dotenv.config();
 
 
 
 
-// Function to update (prompt and store) the DATABASE_URL.
+// Function to update DATABASE_URL manually.
 async function updateDatabaseUrl() {
   const newDbUrl = await promptForDB();
   const DB_FILE = path.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
@@ -29,31 +28,47 @@ async function updateDatabaseUrl() {
   console.log(chalk.green("DATABASE_URL updated successfully."));
 }
 
-// Function to update repnalyzer (for example, by showing instructions)
+// Function to update repnalyzer (prints update instructions)
 async function updateRepnalyzer() {
   console.log(chalk.green("To update repnalyzer globally, run:"));
   console.log(chalk.yellow("npm update -g repnalyzer"));
 }
 
-// This function loads both the GitHub token and the DATABASE_URL before any CLI commands run.
+// Function to initialize environment variables.
 async function initializeEnv() {
-  // Get GitHub token
+  // Load GitHub token.
   const githubToken = await getApiKey();
   process.env.GITHUB_TOKEN = githubToken;
   console.log(chalk.green('GITHUB_TOKEN loaded.'));
 
-  // Get DATABASE_URL; if not present, prompt the user and save it.
+  // Load DATABASE_URL.
   const dbUrl = await getDBUrl();
   process.env.DATABASE_URL = dbUrl;
   console.log(chalk.green('DATABASE_URL loaded.'));
+}
+
+// Function to automatically run Prisma migrations.
+function runPrismaMigrations() {
+  try {
+    console.log(chalk.blue("Applying Prisma migrations..."));
+    // You can use migrate deploy in production or migrate dev during development.
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    console.log(chalk.green("Prisma migrations applied successfully."));
+  } catch (err) {
+    console.error(chalk.red("Error applying Prisma migrations:"), err);
+    process.exit(1);
+  }
 }
 
 async function main() {
   console.log(chalk.blue(figlet.textSync('Repnalyzer')));
   console.log(chalk.yellow('Repnalyzer is starting...\n'));
 
-  // Initialize environment: load GITHUB_TOKEN and DATABASE_URL.
+  // Initialize environment variables (GITHUB_TOKEN and DATABASE_URL)
   await initializeEnv();
+
+  // Automatically apply Prisma migrations before proceeding.
+  runPrismaMigrations();
 
   const program = new Command();
   program
@@ -61,7 +76,7 @@ async function main() {
     .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
     .version('0.1.0');
 
-  // Register subcommands.
+  // Register subcommands (they instantiate PrismaClient in their action callbacks)
   program.addCommand(scanCommand());
   program.addCommand(accessCommand());
   program.addCommand(listApisCommand());
@@ -104,16 +119,15 @@ async function main() {
       await updateRepnalyzer();
     });
 
-  // Default behavior: if an organization name is provided, you might show org stats;
+  // Default behavior: if an organization name is provided, show org stats;
   // otherwise, show a help prompt.
   program
     .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
     .action(async (orgname) => {
       if (orgname) {
-        // For example, if you have a function getOrgStats(), call it here:
-        // await getOrgStats(process.env.GITHUB_TOKEN, orgname);
+        // For example, call your getOrgStats() function here.
       } else {
-        // If no orgname is provided, display default user stats or just a help message.
+        // For example, call your getUserStats() function here.
         console.log(chalk.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
       }
     });

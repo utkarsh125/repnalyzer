@@ -42,16 +42,15 @@ const db_1 = require("./utils/db");
 const commander_1 = require("commander");
 const access_1 = require("./commands/access");
 const chalk_1 = __importDefault(require("chalk"));
+const child_process_1 = require("child_process");
 const figlet_1 = __importDefault(require("figlet"));
 const fs_1 = __importDefault(require("fs"));
-// Import utility functions for GitHub token and Database URL.
 const token_1 = require("./utils/token");
 const listApis_1 = __importDefault(require("./commands/listApis"));
 const path_1 = __importDefault(require("path"));
-// Import your command modules.
 const scan_1 = require("./commands/scan");
 dotenv.config();
-// Function to update (prompt and store) the DATABASE_URL.
+// Function to update DATABASE_URL manually.
 async function updateDatabaseUrl() {
     const newDbUrl = await (0, db_1.promptForDB)();
     const DB_FILE = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
@@ -59,33 +58,48 @@ async function updateDatabaseUrl() {
     process.env.DATABASE_URL = newDbUrl;
     console.log(chalk_1.default.green("DATABASE_URL updated successfully."));
 }
-// Function to update repnalyzer (for example, by showing instructions)
+// Function to update repnalyzer (prints update instructions)
 async function updateRepnalyzer() {
     console.log(chalk_1.default.green("To update repnalyzer globally, run:"));
     console.log(chalk_1.default.yellow("npm update -g repnalyzer"));
 }
-// This function loads both the GitHub token and the DATABASE_URL before any CLI commands run.
+// Function to initialize environment variables.
 async function initializeEnv() {
-    // Get GitHub token
+    // Load GitHub token.
     const githubToken = await (0, token_1.getApiKey)();
     process.env.GITHUB_TOKEN = githubToken;
     console.log(chalk_1.default.green('GITHUB_TOKEN loaded.'));
-    // Get DATABASE_URL; if not present, prompt the user and save it.
+    // Load DATABASE_URL.
     const dbUrl = await (0, db_1.getDBUrl)();
     process.env.DATABASE_URL = dbUrl;
     console.log(chalk_1.default.green('DATABASE_URL loaded.'));
 }
+// Function to automatically run Prisma migrations.
+function runPrismaMigrations() {
+    try {
+        console.log(chalk_1.default.blue("Applying Prisma migrations..."));
+        // You can use migrate deploy in production or migrate dev during development.
+        (0, child_process_1.execSync)('npx prisma migrate deploy', { stdio: 'inherit' });
+        console.log(chalk_1.default.green("Prisma migrations applied successfully."));
+    }
+    catch (err) {
+        console.error(chalk_1.default.red("Error applying Prisma migrations:"), err);
+        process.exit(1);
+    }
+}
 async function main() {
     console.log(chalk_1.default.blue(figlet_1.default.textSync('Repnalyzer')));
     console.log(chalk_1.default.yellow('Repnalyzer is starting...\n'));
-    // Initialize environment: load GITHUB_TOKEN and DATABASE_URL.
+    // Initialize environment variables (GITHUB_TOKEN and DATABASE_URL)
     await initializeEnv();
+    // Automatically apply Prisma migrations before proceeding.
+    runPrismaMigrations();
     const program = new commander_1.Command();
     program
         .name('repnalyzer')
         .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
         .version('0.1.0');
-    // Register subcommands.
+    // Register subcommands (they instantiate PrismaClient in their action callbacks)
     program.addCommand((0, scan_1.scanCommand)());
     program.addCommand((0, access_1.accessCommand)());
     program.addCommand((0, listApis_1.default)());
@@ -120,17 +134,16 @@ async function main() {
         .action(async () => {
         await updateRepnalyzer();
     });
-    // Default behavior: if an organization name is provided, you might show org stats;
+    // Default behavior: if an organization name is provided, show org stats;
     // otherwise, show a help prompt.
     program
         .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
         .action(async (orgname) => {
         if (orgname) {
-            // For example, if you have a function getOrgStats(), call it here:
-            // await getOrgStats(process.env.GITHUB_TOKEN, orgname);
+            // For example, call your getOrgStats() function here.
         }
         else {
-            // If no orgname is provided, display default user stats or just a help message.
+            // For example, call your getUserStats() function here.
             console.log(chalk_1.default.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
         }
     });
