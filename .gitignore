@@ -2,3 +2,4 @@
 node_modules
 .qodo
 .vscode
+.repnalyzer_token
