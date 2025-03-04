@@ -58,118 +58,98 @@ async function updateDatabaseUrl() {
     process.env.DATABASE_URL = newDbUrl;
     console.log(chalk_1.default.green("DATABASE_URL updated successfully."));
 }
-// Function to update repnalyzer package.
-// It removes the stored API key and DATABASE_URL, then updates via npm.
-async function updateRepnalyzerPackage() {
-    const tokenFile = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_token');
-    const dbFile = path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_db_url');
-    if (fs_1.default.existsSync(tokenFile)) {
-        fs_1.default.unlinkSync(tokenFile);
-        console.log(chalk_1.default.green("Stored GITHUB_TOKEN removed."));
-    }
-    if (fs_1.default.existsSync(dbFile)) {
-        fs_1.default.unlinkSync(dbFile);
-        console.log(chalk_1.default.green("Stored DATABASE_URL removed."));
-    }
-    try {
-        console.log(chalk_1.default.blue("Updating repnalyzer package..."));
-        (0, child_process_1.execSync)('npm i -g repnalyzer', { stdio: 'inherit' });
-        console.log(chalk_1.default.green("repnalyzer updated successfully."));
-    }
-    catch (err) {
-        console.error(chalk_1.default.red("Error updating repnalyzer:"), err);
-        process.exit(1);
-    }
+// Function to update repnalyzer (prints update instructions)
+async function updateRepnalyzer() {
+    console.log(chalk_1.default.green("To update repnalyzer globally, run:"));
+    console.log(chalk_1.default.yellow("npm update -g repnalyzer"));
 }
 // This function loads both the GITHUB_TOKEN and DATABASE_URL.
 async function initializeEnv() {
     // Load GitHub token.
     const githubToken = await (0, token_1.getApiKey)();
     process.env.GITHUB_TOKEN = githubToken;
-    console.log(chalk_1.default.green("GITHUB_TOKEN loaded."));
+    console.log(chalk_1.default.green('GITHUB_TOKEN loaded.'));
     // Load DATABASE_URL.
     const dbUrl = await (0, db_1.getDBUrl)();
     process.env.DATABASE_URL = dbUrl;
-    console.log(chalk_1.default.green("DATABASE_URL loaded."));
+    console.log(chalk_1.default.green('DATABASE_URL loaded.'));
 }
-// Function to automatically run Prisma migrations.
-// If migrations fail, it falls back to pushing the schema.
+// Function to automatically run Prisma migrations using the default schema shipped with the package.
 function runPrismaMigrations() {
     try {
         console.log(chalk_1.default.blue("Applying Prisma migrations..."));
-        (0, child_process_1.execSync)("npx prisma migrate deploy", { stdio: "inherit" });
+        // Define the expected location of your Prisma schema relative to this file.
+        const schemaPath = path_1.default.join(__dirname, '../prisma/schema.prisma');
+        if (!fs_1.default.existsSync(schemaPath)) {
+            console.error(chalk_1.default.red("Prisma schema not found. Please ensure a schema.prisma exists in the 'prisma' folder of your project, or include one with repnalyzer."));
+            process.exit(1);
+        }
+        // Run migration command with the --schema flag.
+        (0, child_process_1.execSync)(`npx prisma migrate deploy --schema="${schemaPath}"`, { stdio: 'inherit' });
         console.log(chalk_1.default.green("Prisma migrations applied successfully."));
     }
     catch (err) {
         console.error(chalk_1.default.red("Error applying Prisma migrations:"), err);
-        console.log(chalk_1.default.blue("Falling back to pushing schema..."));
-        try {
-            (0, child_process_1.execSync)("npx prisma db push", { stdio: "inherit" });
-            console.log(chalk_1.default.green("Schema pushed successfully."));
-        }
-        catch (err2) {
-            console.error(chalk_1.default.red("Error pushing schema:"), err2);
-            process.exit(1);
-        }
+        process.exit(1);
     }
 }
 async function main() {
-    console.log(chalk_1.default.blue(figlet_1.default.textSync("Repnalyzer")));
-    console.log(chalk_1.default.yellow("Repnalyzer is starting...\n"));
-    // Initialize environment variables.
+    console.log(chalk_1.default.blue(figlet_1.default.textSync('Repnalyzer')));
+    console.log(chalk_1.default.yellow('Repnalyzer is starting...\n'));
+    // Initialize environment variables (GITHUB_TOKEN and DATABASE_URL)
     await initializeEnv();
     // Automatically apply Prisma migrations before proceeding.
     runPrismaMigrations();
     const program = new commander_1.Command();
     program
-        .name("repnalyzer")
-        .description("A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...")
-        .version("0.1.0");
-    // Register subcommands.
+        .name('repnalyzer')
+        .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
+        .version('0.1.0');
+    // Register subcommands (they instantiate PrismaClient within their action callbacks)
     program.addCommand((0, scan_1.scanCommand)());
     program.addCommand((0, access_1.accessCommand)());
     program.addCommand((0, listApis_1.default)());
     // Command to update the GitHub token.
     program
-        .command("update-token")
-        .description("Update your GITHUB_TOKEN")
+        .command('update-token')
+        .description('Update your GITHUB_TOKEN')
         .action(async () => {
-        const rl = require("readline").createInterface({
+        const rl = require('readline').createInterface({
             input: process.stdin,
             output: process.stdout,
         });
-        rl.question(chalk_1.default.yellow("Please enter your new GITHUB_TOKEN: "), (answer) => {
+        rl.question(chalk_1.default.yellow('Please enter your new GITHUB_TOKEN: '), (answer) => {
             rl.close();
             const newToken = answer.trim();
-            fs_1.default.writeFileSync(path_1.default.join(process.env.HOME || process.cwd(), ".repnalyzer_token"), newToken, { mode: 0o600 });
-            console.log(chalk_1.default.green("Token updated."));
+            fs_1.default.writeFileSync(path_1.default.join(process.env.HOME || process.cwd(), '.repnalyzer_token'), newToken, { mode: 0o600 });
+            console.log(chalk_1.default.green('Token updated.'));
             process.env.GITHUB_TOKEN = newToken;
         });
     });
     // Command to update the DATABASE_URL.
     program
-        .command("update-db")
-        .description("Update your DATABASE_URL")
+        .command('update-db')
+        .description('Update your DATABASE_URL')
         .action(async () => {
         await updateDatabaseUrl();
     });
-    // Command to update repnalyzer package.
+    // Command to update repnalyzer itself.
     program
-        .command("update")
-        .description("Update repnalyzer package (removes stored credentials before updating)")
+        .command('update')
+        .description('Update repnalyzer')
         .action(async () => {
-        await updateRepnalyzerPackage();
+        await updateRepnalyzer();
     });
     // Default behavior: if an organization name is provided, show org stats;
     // otherwise, show a help prompt.
     program
-        .argument("[orgname]", "GitHub organization name to view stats for (if provided, displays org stats)")
+        .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
         .action(async (orgname) => {
         if (orgname) {
-            // Call your getOrgStats() function here (if implemented).
+            // Call your getOrgStats() function here, if implemented.
         }
         else {
-            // Call your getUserStats() function here (if implemented).
+            // Call your getUserStats() function here, if implemented.
             console.log(chalk_1.default.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
         }
     });
