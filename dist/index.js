@@ -40,6 +40,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv = __importStar(require("dotenv"));
 const commander_1 = require("commander");
 const access_1 = require("./commands/access");
+const chalk_1 = __importDefault(require("chalk"));
+const figlet_1 = __importDefault(require("figlet"));
 const fs_1 = __importDefault(require("fs"));
 const listApis_1 = __importDefault(require("./commands/listApis"));
 const path_1 = __importDefault(require("path"));
@@ -56,7 +58,7 @@ async function promptForToken() {
             output: process.stdout,
             terminal: true,
         });
-        rl.question('Please enter your GITHUB_TOKEN: ', (answer) => {
+        rl.question(chalk_1.default.yellow('Please enter your GITHUB_TOKEN: '), (answer) => {
             rl.close();
             resolve(answer.trim());
         });
@@ -81,59 +83,134 @@ async function checkUserOrganizations(token) {
         const response = await fetch('https://api.github.com/user/orgs', {
             headers: {
                 'Authorization': `token ${token}`,
-                'User-Agent': 'repnalyzer-cli'
-            }
+                'User-Agent': 'repnalyzer-cli',
+            },
         });
         if (!response.ok) {
-            console.error('Error fetching organizations:', response.status, response.statusText);
+            console.error(chalk_1.default.red('Error fetching organizations:'), response.status, response.statusText);
             return false;
         }
         const orgs = await response.json();
         if (orgs.length === 0) {
-            console.log('User is not affiliated with any organization.');
+            console.log(chalk_1.default.yellow('User is not affiliated with any organization.'));
             return false;
         }
         else {
-            console.log('User is affiliated with the following organizations:');
-            orgs.forEach((org) => console.log(`- ${org.login}`));
+            console.log(chalk_1.default.green('User is affiliated with the following organizations:'));
+            orgs.forEach((org) => console.log(chalk_1.default.green(`- ${org.login}`)));
             return true;
         }
     }
     catch (error) {
-        console.error('Error while checking organizations:', error);
+        console.error(chalk_1.default.red('Error while checking organizations:'), error);
         return false;
     }
 }
+// Fetches and prints user statistics (e.g., number of repositories and organizations)
+async function getUserStats(token) {
+    try {
+        const reposResponse = await fetch('https://api.github.com/user/repos?per_page=100', {
+            headers: {
+                'Authorization': `token ${token}`,
+                'User-Agent': 'repnalyzer-cli',
+            },
+        });
+        const repos = await reposResponse.json();
+        const orgsResponse = await fetch('https://api.github.com/user/orgs', {
+            headers: {
+                'Authorization': `token ${token}`,
+                'User-Agent': 'repnalyzer-cli',
+            },
+        });
+        const orgs = await orgsResponse.json();
+        console.log(chalk_1.default.blue(figlet_1.default.textSync('Profile Info')));
+        console.log(chalk_1.default.green(`Total Repositories: ${repos.length}`));
+        console.log(chalk_1.default.green(`Total Organizations: ${orgs.length}`));
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('Error fetching user stats:'), error);
+    }
+}
+// Fetches and prints organization statistics (e.g., number of public repos and members)
+async function getOrgStats(token, orgname) {
+    try {
+        // Fetch organization details.
+        const orgResponse = await fetch(`https://api.github.com/orgs/${orgname}`, {
+            headers: {
+                'Authorization': `token ${token}`,
+                'User-Agent': 'repnalyzer-cli',
+            },
+        });
+        if (!orgResponse.ok) {
+            console.error(chalk_1.default.red(`Error fetching organization ${orgname}: ${orgResponse.status} ${orgResponse.statusText}`));
+            return;
+        }
+        const orgData = await orgResponse.json();
+        // Fetch organization members.
+        const membersResponse = await fetch(`https://api.github.com/orgs/${orgname}/members?per_page=100`, {
+            headers: {
+                'Authorization': `token ${token}`,
+                'User-Agent': 'repnalyzer-cli',
+            },
+        });
+        const members = await membersResponse.json();
+        console.log(chalk_1.default.blue(figlet_1.default.textSync('Org Stats')));
+        console.log(chalk_1.default.green(`Organization: ${orgData.login}`));
+        console.log(chalk_1.default.green(`Total Public Repositories: ${orgData.public_repos}`));
+        console.log(chalk_1.default.green(`Total Members: ${members.length}`));
+    }
+    catch (error) {
+        console.error(chalk_1.default.red(`Error fetching stats for organization ${orgname}:`), error);
+    }
+}
 async function main() {
-    console.log('Repnalyzer is starting...');
-    // Load the GitHub token from file or prompt the user.
+    // Print a beautiful banner.
+    console.log(chalk_1.default.blue(figlet_1.default.textSync('Repnalyzer')));
+    console.log(chalk_1.default.yellow('Repnalyzer is starting...\n'));
+    // Load the GitHub token.
     const githubToken = await getGithubToken();
-    console.log('GITHUB_TOKEN loaded.');
-    // Set the token in the environment for downstream usage.
+    console.log(chalk_1.default.green('GITHUB_TOKEN loaded.'));
     process.env.GITHUB_TOKEN = githubToken;
-    // Check user's organization affiliation.
+    // Check user organizations.
     await checkUserOrganizations(githubToken);
     const program = new commander_1.Command();
     program
         .name('repnalyzer')
-        .description('A CLI tool for Github Security Scanning, Access Control Analysis, and more...')
+        .description('A CLI tool for GitHub Security Scanning, Access Control Analysis, and more...')
         .version('0.1.0');
-    // Add subcommands.
+    // Register subcommands.
     program.addCommand((0, scan_1.scanCommand)());
     program.addCommand((0, access_1.accessCommand)());
     program.addCommand((0, listApis_1.default)());
-    // Add a subcommand to update the token.
+    // Command to update the token.
     program
         .command('update-token')
         .description('Update your GITHUB_TOKEN')
         .action(async () => {
         const newToken = await promptForToken();
         fs_1.default.writeFileSync(TOKEN_FILE, newToken, { mode: 0o600 });
-        console.log('Token updated.');
+        console.log(chalk_1.default.green('Token updated.'));
         process.env.GITHUB_TOKEN = newToken;
-        // Check organizations after token update.
         await checkUserOrganizations(newToken);
     });
+    // Default behavior when no subcommand or argument is provided.
+    // It displays the user profile info and a prompt message.
+    program
+        .argument('[orgname]', 'GitHub organization name to view stats for (if provided, displays org stats)')
+        .action(async (orgname) => {
+        if (orgname) {
+            await getOrgStats(githubToken, orgname);
+        }
+        else {
+            await getUserStats(githubToken);
+            console.log(chalk_1.default.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
+        }
+    });
     program.parse(process.argv);
+    // If no arguments were provided (only the executable name), show profile info with the help prompt.
+    if (process.argv.length <= 2) {
+        await getUserStats(githubToken);
+        console.log(chalk_1.default.yellow("\nPlease use --help to see a list of things that you can do with this CLI."));
+    }
 }
 main();

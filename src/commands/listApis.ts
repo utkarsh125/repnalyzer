@@ -29,7 +29,6 @@ export function listApisCommand() {
       const token = process.env.GITHUB_TOKEN;
       const octokit = createGithubClient(token);
 
-      // ... (rest of your code remains unchanged)
       try {
         const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
           org,
@@ -125,22 +124,21 @@ export function listApisCommand() {
                   )
                 );
                 for (const url of endpointMatches) {
-                  if (url.toLowerCase().includes("api")) {
-                    const existingEndpoint = await prisma.apiEndpoint.findFirst({
-                      where: {
+                  // Removed filtering condition so all endpoints are processed
+                  const existingEndpoint = await prisma.apiEndpoint.findFirst({
+                    where: {
+                      endpoint: url,
+                      repository: { id: repoRecord.id },
+                    },
+                  });
+                  if (!existingEndpoint) {
+                    await prisma.apiEndpoint.create({
+                      data: {
                         endpoint: url,
-                        repository: { id: repoRecord.id },
+                        repository: { connect: { id: repoRecord.id } },
                       },
                     });
-                    if (!existingEndpoint) {
-                      await prisma.apiEndpoint.create({
-                        data: {
-                          endpoint: url,
-                          repository: { connect: { id: repoRecord.id } },
-                        },
-                      });
-                      console.log(chalk.yellow(`Found API endpoint in ${repoData.name}: ${url}`));
-                    }
+                    console.log(chalk.yellow(`Found API endpoint in ${repoData.name}: ${url}`));
                   }
                 }
               } else {
@@ -341,7 +339,7 @@ export function listApisCommand() {
           },
         });
         if (connections.length === 0) {
-          console.log(chalk.yellow("No API connections found in the local database."));
+          // console.log(chalk.yellow("No API connections found in the local database."));
         } else {
           connections.forEach((connection) => {
             console.log(chalk.green(`Organization: ${connection.repository.organization.name}`));

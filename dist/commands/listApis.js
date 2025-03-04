@@ -27,7 +27,6 @@ function listApisCommand() {
         // Pass the token from the environment (which should be set by your main script)
         const token = process.env.GITHUB_TOKEN;
         const octokit = (0, githubClient_1.createGithubClient)(token);
-        // ... (rest of your code remains unchanged)
         try {
             const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
                 org,
@@ -103,22 +102,21 @@ function listApisCommand() {
                         if (endpointMatches) {
                             console.log(chalk_1.default.magenta(`Endpoint matches found in ${file.path}: ${endpointMatches.join(", ")}`));
                             for (const url of endpointMatches) {
-                                if (url.toLowerCase().includes("api")) {
-                                    const existingEndpoint = await prisma.apiEndpoint.findFirst({
-                                        where: {
+                                // Removed filtering condition so all endpoints are processed
+                                const existingEndpoint = await prisma.apiEndpoint.findFirst({
+                                    where: {
+                                        endpoint: url,
+                                        repository: { id: repoRecord.id },
+                                    },
+                                });
+                                if (!existingEndpoint) {
+                                    await prisma.apiEndpoint.create({
+                                        data: {
                                             endpoint: url,
-                                            repository: { id: repoRecord.id },
+                                            repository: { connect: { id: repoRecord.id } },
                                         },
                                     });
-                                    if (!existingEndpoint) {
-                                        await prisma.apiEndpoint.create({
-                                            data: {
-                                                endpoint: url,
-                                                repository: { connect: { id: repoRecord.id } },
-                                            },
-                                        });
-                                        console.log(chalk_1.default.yellow(`Found API endpoint in ${repoData.name}: ${url}`));
-                                    }
+                                    console.log(chalk_1.default.yellow(`Found API endpoint in ${repoData.name}: ${url}`));
                                 }
                             }
                         }
@@ -295,7 +293,7 @@ function listApisCommand() {
                 },
             });
             if (connections.length === 0) {
-                console.log(chalk_1.default.yellow("No API connections found in the local database."));
+                // console.log(chalk.yellow("No API connections found in the local database."));
             }
             else {
                 connections.forEach((connection) => {

@@ -4,9 +4,12 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc",
     "start": "ts-node src/index.ts",
     "dev": "nodemon --watch src --exec ts-node src/index.ts"
+  },
+  "bin":{
+    "repnalyzer": "./dist/index.js"
   },
   "repository": {
     "type": "git",
