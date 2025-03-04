@@ -4,8 +4,6 @@ import chalk from "chalk";
 import { createGithubClient } from "../lib/githubClient";
 import figlet from "figlet";
 
-const prisma = new PrismaClient();
-
 export function scanCommand() {
   const scan = new Command("scan");
 
@@ -16,7 +14,6 @@ export function scanCommand() {
     .option("--org <org>", "Github organization name")
     .action(async (options) => {
       const { org } = options;
-
       if (!org) {
         console.error(chalk.red("Please specify --org <org>"));
         process.exit(1);
@@ -26,6 +23,9 @@ export function scanCommand() {
 
       // Await the async GitHub client creation
       const octokit = await createGithubClient(process.env.GITHUB_TOKEN);
+
+      // Instantiate PrismaClient here so that DATABASE_URL is available.
+      const prisma = new PrismaClient();
 
       try {
         // 1. Fetch the repos from the organization
@@ -71,7 +71,7 @@ export function scanCommand() {
             }
           }
 
-          // 2c. Check for GitHub Actions workflows and list errors (1 error per action file)
+          // 2c. Check for GitHub Actions workflows and list errors
           try {
             const { data: workflowsData } = await octokit.request(
               "GET /repos/{owner}/{repo}/actions/workflows",

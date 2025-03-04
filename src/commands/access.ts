@@ -4,8 +4,6 @@ import chalk from "chalk";
 import { createGithubClient } from "../lib/githubClient";
 import figlet from "figlet";
 
-const prisma = new PrismaClient();
-
 export function accessCommand() {
   const access = new Command("access");
 
@@ -24,6 +22,9 @@ export function accessCommand() {
 
       // Await the async GitHub client creation (will prompt if token is missing)
       const octokit = await createGithubClient(process.env.GITHUB_TOKEN);
+
+      // Instantiate PrismaClient here
+      const prisma = new PrismaClient();
 
       try {
         // 1. Fetch repositories

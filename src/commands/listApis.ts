@@ -4,8 +4,6 @@ import chalk from "chalk";
 import { createGithubClient } from "../lib/githubClient";
 import figlet from "figlet";
 
-const prisma = new PrismaClient();
-
 export function listApisCommand() {
   const listApis = new Command("list-apis");
 
@@ -28,6 +26,9 @@ export function listApisCommand() {
       const token = process.env.GITHUB_TOKEN;
       const octokit = await createGithubClient(token);
 
+      // Instantiate PrismaClient here
+      const prisma = new PrismaClient();
+
       try {
         const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
           org,
@@ -40,13 +41,9 @@ export function listApisCommand() {
           process.exit(0);
         }
 
-        let orgRecord = await prisma.organization.findUnique({
-          where: { name: org },
-        });
+        let orgRecord = await prisma.organization.findUnique({ where: { name: org } });
         if (!orgRecord) {
-          orgRecord = await prisma.organization.create({
-            data: { name: org },
-          });
+          orgRecord = await prisma.organization.create({ data: { name: org } });
         }
 
         for (const repoData of repos) {
@@ -121,12 +118,8 @@ export function listApisCommand() {
                   )
                 );
                 for (const url of endpointMatches) {
-                  // Process every URL found
                   const existingEndpoint = await prisma.apiEndpoint.findFirst({
-                    where: {
-                      endpoint: url,
-                      repository: { id: repoRecord.id },
-                    },
+                    where: { endpoint: url, repository: { id: repoRecord.id } },
                   });
                   if (!existingEndpoint) {
                     await prisma.apiEndpoint.create({
@@ -148,10 +141,7 @@ export function listApisCommand() {
                 keyMatches.forEach(async (match) => {
                   const key = match[1];
                   const existingKey = await prisma.apiKey.findFirst({
-                    where: {
-                      key,
-                      repository: { id: repoRecord.id },
-                    },
+                    where: { key, repository: { id: repoRecord.id } },
                   });
                   if (!existingKey) {
                     await prisma.apiKey.create({
