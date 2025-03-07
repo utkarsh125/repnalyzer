@@ -1,6 +1,6 @@
 # Repnalyzer
 
-[![Node.js](https://img.shields.io/badge/Node.js-v16-blue.svg)](https://nodejs.org)  
+[![Node.js](https://img.shields.io/badge/Node.js-v23-blue.svg)](https://nodejs.org)  
 [![TypeScript](https://img.shields.io/badge/TypeScript-4.x-blue.svg)](https://www.typescriptlang.org)  
 [![GitHub Access Token](https://img.shields.io/badge/GitHub_Access_Token-secure-brightgreen.svg)](#)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
